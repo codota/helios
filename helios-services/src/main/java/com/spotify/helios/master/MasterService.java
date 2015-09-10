@@ -28,10 +28,13 @@ import com.google.common.io.Resources;
 import com.google.common.util.concurrent.AbstractIdleService;
 
 import com.codahale.metrics.MetricRegistry;
+import com.spotify.crtauth.CrtAuthServer;
 import com.spotify.helios.agent.KafkaClientProvider;
-import com.spotify.helios.master.auth.ExampleAuthenticator;
+import com.spotify.helios.master.auth.CrtAuthServerFactory;
+import com.spotify.helios.master.auth.CrtAuthenticator;
 import com.spotify.helios.master.http.VersionResponseFilter;
 import com.spotify.helios.master.metrics.ReportingResourceMethodDispatchAdapter;
+import com.spotify.helios.master.resources.AuthResource;
 import com.spotify.helios.master.resources.DeploymentGroupResource;
 import com.spotify.helios.master.resources.HistoryResource;
 import com.spotify.helios.master.resources.HostsResource;
@@ -83,7 +86,7 @@ import javax.servlet.DispatcherType;
 import javax.servlet.FilterRegistration;
 
 import ch.qos.logback.access.jetty.RequestLogImpl;
-import io.dropwizard.auth.basic.BasicAuthProvider;
+import io.dropwizard.auth.oauth.OAuthProvider;
 import io.dropwizard.configuration.ConfigurationException;
 import io.dropwizard.jetty.GzipFilterFactory;
 import io.dropwizard.jetty.RequestLogFactory;
@@ -192,6 +195,12 @@ public class MasterService extends AbstractIdleService {
     final ReactorFactory reactorFactory = new ReactorFactory();
     this.rollingUpdateService = new RollingUpdateService(model, reactorFactory);
 
+
+    // Set up CRT auth server
+    final CrtAuthServer crtAuthServer = CrtAuthServerFactory.makeCrtAuthServer();
+    final CrtAuthenticator crtAuthenticator = new CrtAuthenticator(crtAuthServer);
+    environment.jersey().register(new AuthResource(crtAuthServer));
+
     // Set up http server
     environment.servlets()
         .addFilter("VersionResponseFilter", VersionResponseFilter.class)
@@ -205,8 +214,7 @@ public class MasterService extends AbstractIdleService {
     environment.jersey().register(new VersionResource());
     environment.jersey().register(new UserProvider());
     environment.jersey().register(new DeploymentGroupResource(model));
-    environment.jersey().register(
-        new BasicAuthProvider<>(new ExampleAuthenticator(), "SUPER SECRET STUFF"));
+    environment.jersey().register(new OAuthProvider<>(crtAuthenticator, "SUPER SECRET STUFF"));
 
     final DefaultServerFactory serverFactory = ServiceUtil.createServerFactory(
         config.getHttpEndpoint(), config.getAdminPort(), false);

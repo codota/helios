@@ -24,31 +24,26 @@ package com.spotify.helios.master.auth;
 import com.google.common.base.Optional;
 
 import com.spotify.crtauth.CrtAuthServer;
-import com.spotify.crtauth.keyprovider.InMemoryKeyProvider;
 
 import io.dropwizard.auth.AuthenticationException;
 import io.dropwizard.auth.Authenticator;
-import io.dropwizard.auth.basic.BasicCredentials;
 
-public class CrtAuthenticator implements Authenticator<BasicCredentials, User> {
+public class CrtAuthenticator implements Authenticator<String, User> {
 
   private final CrtAuthServer crtAuthServer;
 
-  public CrtAuthenticator(final String serverName) {
-    final InMemoryKeyProvider keyProvider = new InMemoryKeyProvider();
-
-    this.crtAuthServer = new CrtAuthServer.Builder()
-        .setServerName(serverName)
-        .setKeyProvider(keyProvider)
-        .setSecret(new byte[] {(byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef})
-        .build();
+  public CrtAuthenticator(final CrtAuthServer crtAuthServer) {
+    this.crtAuthServer = crtAuthServer;
   }
 
   @Override
-  public Optional<User> authenticate(final BasicCredentials credentials) throws AuthenticationException {
-    if ("secret".equals(credentials.getPassword())) {
-      return Optional.of(new User(credentials.getUsername()));
+  public Optional<User> authenticate(final String s) throws AuthenticationException {
+    final String username;
+    try {
+      username = crtAuthServer.validateToken(s.split(":")[1]);
+    } catch (Exception e) {
+      return Optional.absent();
     }
-    return Optional.absent();
+    return Optional.of(new User(username));
   }
 }

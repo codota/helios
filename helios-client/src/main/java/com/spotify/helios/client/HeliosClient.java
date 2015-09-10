@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.spotify.crtauth.CrtAuthClient;
 import com.spotify.helios.common.HeliosException;
 import com.spotify.helios.common.Json;
 import com.spotify.helios.common.Resolver;
@@ -82,11 +83,13 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
@@ -202,8 +205,16 @@ public class HeliosClient implements AutoCloseable {
     return request(uri, method, null);
   }
 
-  private ListenableFuture<Response> request(final URI uri, final String method,
+  private ListenableFuture<Response> request(final URI uri,
+                                             final String method,
                                              final Object entity) {
+    return request(uri, method, entity, Collections.<String, List<String>>emptyMap());
+  }
+
+  private ListenableFuture<Response> request(final URI uri,
+                                             final String method,
+                                             final Object entity,
+                                             final Map<String, List<String>> otherHeaders) {
     final Map<String, List<String>> headers = Maps.newHashMap();
     final byte[] entityBytes;
     headers.put(VersionCompatibility.HELIOS_VERSION_HEADER,
@@ -215,6 +226,11 @@ public class HeliosClient implements AutoCloseable {
     } else {
       entityBytes = new byte[]{};
     }
+
+    if (!otherHeaders.isEmpty()) {
+      headers.putAll(otherHeaders);
+    }
+
     return executorService.submit(new Callable<Response>() {
       @Override
       public Response call() throws Exception {
@@ -226,6 +242,7 @@ public class HeliosClient implements AutoCloseable {
         } else {
           rawStream = connection.getInputStream();
         }
+        final Map<String, List<String>> headers = connection.getHeaderFields();
         final boolean gzip = isGzipCompressed(connection);
         final InputStream stream = gzip ? new GZIPInputStream(rawStream) : rawStream;
         final ByteArrayOutputStream payload = new ByteArrayOutputStream();
@@ -238,11 +255,11 @@ public class HeliosClient implements AutoCloseable {
         }
         URI realUri = connection.getURL().toURI();
         if (log.isTraceEnabled()) {
-          log.trace("rep: {} {} {} {} {} gzip:{}",
-                    method, realUri, status, payload.size(), decode(payload), gzip);
+          log.trace("rep: {} {} {} {} {} {} gzip:{}",
+                    method, realUri, status, payload.size(), decode(payload), headers, gzip);
         } else {
           log.debug("rep: {} {} {} {} gzip:{}",
-                    method, realUri, status, payload.size(), gzip);
+                    method, realUri, status, payload.size(), headers, gzip);
         }
         checkprotocolVersionStatus(connection);
         return new Response(method, uri, status, payload.toByteArray());
@@ -532,6 +549,21 @@ public class HeliosClient implements AutoCloseable {
     });
   }
 
+  public ListenableFuture<List<String>> listMastersAuthed()
+      throws ExecutionException, InterruptedException {
+    final Response r = request(uri("/masters/authed"), "GET").get();
+    if (r.getStatus() == 401) {
+      final String authRequest = CrtAuthClient.createRequest("test");
+      final Response r2 = request(uri("/_auth"), "GET", null, ImmutableMap.of(
+          "X-CHAP", singletonList("request:" + authRequest))).get();
+      System.out.println(r2.getStatus());
+      final String s = Arrays.toString(r2.getPayload());
+      System.out.println(s);
+    }
+    return get(uri("/masters/"), new TypeReference<List<String>>() {
+    });
+  }
+
   public ListenableFuture<VersionResponse> version() {
     // Create a fallback in case we fail to connect to the master. Return null if this happens.
     // The transform below will handle this and return an appropriate error message to the caller.
@@ -756,11 +788,20 @@ public class HeliosClient implements AutoCloseable {
     private final int status;
     private final byte[] payload;
 
-    public Response(final String method, final URI uri, final int status, final byte[] payload) {
+    public Response(final String method, final URI uri, final int status, final byte[] payload, final Map) {
       this.method = method;
       this.uri = uri;
       this.status = status;
       this.payload = payload;
+      this.headers = headers;
+    }
+
+    public int getStatus() {
+      return status;
+    }
+
+    public byte[] getPayload() {
+      return payload;
     }
 
     @Override

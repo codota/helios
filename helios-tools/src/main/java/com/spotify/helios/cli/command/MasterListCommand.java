@@ -57,7 +57,8 @@ public class MasterListCommand extends ControlCommand {
           final boolean json, final BufferedReader stdin)
       throws ExecutionException, InterruptedException {
 
-    final List<String> masters = client.listMasters().get();
+//    final List<String> masters = client.listMasters().get();
+    final List<String> masters = client.listMastersAuthed().get();
     final boolean full = options.getBoolean(fullArg.getDest());
 
     final SortedSet<String> sortedMasters = Sets.newTreeSet();
