@@ -28,14 +28,11 @@ import com.google.common.io.Resources;
 import com.google.common.util.concurrent.AbstractIdleService;
 
 import com.codahale.metrics.MetricRegistry;
-import com.spotify.crtauth.CrtAuthServer;
 import com.spotify.helios.agent.KafkaClientProvider;
-import com.spotify.helios.master.auth.CrtAuthProvider;
-import com.spotify.helios.master.auth.CrtAuthServerFactory;
-import com.spotify.helios.master.auth.CrtAuthenticator;
+import com.spotify.helios.authentication.Authenticator;
+import com.spotify.helios.authentication.Authenticators;
 import com.spotify.helios.master.http.VersionResponseFilter;
 import com.spotify.helios.master.metrics.ReportingResourceMethodDispatchAdapter;
-import com.spotify.helios.master.resources.AuthResource;
 import com.spotify.helios.master.resources.DeploymentGroupResource;
 import com.spotify.helios.master.resources.HistoryResource;
 import com.spotify.helios.master.resources.HostsResource;
@@ -111,6 +108,7 @@ public class MasterService extends AbstractIdleService {
   private final ExpiredJobReaper expiredJobReaper;
   private final CuratorClientFactory curatorClientFactory;
   private final RollingUpdateService rollingUpdateService;
+  private final Authenticator authenticator;
 
   private ZooKeeperRegistrar zkRegistrar;
 
@@ -196,10 +194,14 @@ public class MasterService extends AbstractIdleService {
     this.rollingUpdateService = new RollingUpdateService(model, reactorFactory);
 
 
-    // Set up CRT auth server
-    final CrtAuthServer crtAuthServer = CrtAuthServerFactory.makeCrtAuthServer();
-    final CrtAuthenticator crtAuthenticator = new CrtAuthenticator(crtAuthServer);
-    environment.jersey().register(new AuthResource(crtAuthServer));
+    // Set up authenticator
+    this.authenticator =
+        Authenticators.createAuthenticator(config.getAuthPlugin(), config.getAuthSecret());
+
+//    final CrtAuthServer crtAuthServer = CrtAuthServerFactory.makeCrtAuthServer(
+//        config.getAuthPlugin(), config.getAuthSecret().getBytes());
+//    final CrtAuthenticator crtAuthenticator = new CrtAuthenticator(crtAuthServer);
+//    environment.jersey().register(new AuthResource(crtAuthServer));
 
     // Set up http server
     environment.servlets()
@@ -214,7 +216,7 @@ public class MasterService extends AbstractIdleService {
     environment.jersey().register(new VersionResource());
     environment.jersey().register(new UserProvider());
     environment.jersey().register(new DeploymentGroupResource(model));
-    environment.jersey().register(new CrtAuthProvider<>(crtAuthenticator));
+//    environment.jersey().register(new CrtAuthProvider<>(crtAuthenticator));
 
     final DefaultServerFactory serverFactory = ServiceUtil.createServerFactory(
         config.getHttpEndpoint(), config.getAdminPort(), false);

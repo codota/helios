@@ -19,22 +19,12 @@
  * under the License.
  */
 
-package com.spotify.helios.master.auth;
+package com.spotify.helios.authentication;
 
-import java.security.Principal;
+import com.google.common.base.Optional;
 
-public class User implements Principal {
-  private final String name;
+public interface Authenticator {
 
-  public User(String name) {
-    this.name = name;
-  }
+  Optional<User> authenticate(String token);
 
-  public String getName() {
-    return name;
-  }
-
-  public int getId() {
-    return (int) (Math.random() * 100);
-  }
 }

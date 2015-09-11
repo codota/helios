@@ -19,35 +19,17 @@
  * under the License.
  */
 
-package com.spotify.helios.master.auth;
+package com.spotify.helios.authentication;
 
 import com.google.common.base.Optional;
 
-import com.spotify.crtauth.CrtAuthServer;
-
-import io.dropwizard.auth.AuthenticationException;
-import io.dropwizard.auth.Authenticator;
-
-public class CrtAuthenticator implements Authenticator<String, User> {
-
-  private final CrtAuthServer crtAuthServer;
-
-  public CrtAuthenticator(final CrtAuthServer crtAuthServer) {
-    this.crtAuthServer = crtAuthServer;
-  }
+/**
+ * A nop authenticator that does nothing. Useful as an alternative to null.
+ */
+public class NopAuthenticator implements Authenticator {
 
   @Override
-  public Optional<User> authenticate(final String token) throws AuthenticationException {
-    final String username;
-    try {
-      final String[] tokenParts = token.split(":");
-      if (tokenParts.length == 2) {
-        username = crtAuthServer.validateToken(tokenParts[1]);
-        return Optional.of(new User(username));
-      }
-    } catch (Exception e) {
-      return Optional.absent();
-    }
-    return Optional.absent();
+  public Optional<User> authenticate(final String token) {
+    return Optional.of(new User("nop"));
   }
 }

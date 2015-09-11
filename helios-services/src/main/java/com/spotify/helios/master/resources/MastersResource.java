@@ -24,7 +24,7 @@ package com.spotify.helios.master.resources;
 import com.codahale.metrics.annotation.ExceptionMetered;
 import com.codahale.metrics.annotation.Timed;
 import com.spotify.helios.master.MasterModel;
-import com.spotify.helios.master.auth.User;
+import com.spotify.helios.authentication.User;
 
 import java.util.List;
 

@@ -19,22 +19,18 @@
  * under the License.
  */
 
-package com.spotify.helios.master.auth;
+package com.spotify.helios.authentication;
 
-import com.google.common.base.Optional;
+import java.security.Principal;
 
-import io.dropwizard.auth.AuthenticationException;
-import io.dropwizard.auth.Authenticator;
-import io.dropwizard.auth.basic.BasicCredentials;
+public class User implements Principal {
+  private final String name;
 
-public class ExampleAuthenticator implements Authenticator<BasicCredentials, User> {
+  public User(final String name) {
+    this.name = name;
+  }
 
-  @Override
-  public Optional<User> authenticate(final BasicCredentials credentials)
-      throws AuthenticationException {
-    if ("secret".equals(credentials.getPassword())) {
-      return Optional.of(new User(credentials.getUsername()));
-    }
-    return Optional.absent();
+  public String getName() {
+    return name;
   }
 }

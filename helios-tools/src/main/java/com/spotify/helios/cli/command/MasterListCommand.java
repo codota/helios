@@ -34,6 +34,7 @@ import net.sourceforge.argparse4j.inf.Namespace;
 import net.sourceforge.argparse4j.inf.Subparser;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.List;
 import java.util.SortedSet;
@@ -58,7 +59,7 @@ public class MasterListCommand extends ControlCommand {
   @Override
   int run(final Namespace options, final HeliosClient client, final PrintStream out,
           final boolean json, final BufferedReader stdin)
-      throws ExecutionException, InterruptedException {
+      throws ExecutionException, InterruptedException, IOException {
 
 //    final List<String> masters = client.listMasters().get();
     final List<String> masters;

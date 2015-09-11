@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureFallback;
 import com.google.common.util.concurrent.Futures;
@@ -79,6 +80,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -137,6 +140,10 @@ public class HeliosClient implements AutoCloseable {
   private static final String VALID_PROTOCOLS_STR =
       String.format("[%s]", Joiner.on("|").join(VALID_PROTOCOLS));
   private static final String CRT_AUTH_SCHEME = "X-CHAP";
+  private static final String DEFAULT_SSH_KEY_DIR = ".ssh";
+  private static final String DEFAULT_SSH_PRIVATE_KEY = "id_rsa";
+  private static final String DEFAULT_SSH_PRIVATE_KEY_PATH =
+      DEFAULT_SSH_KEY_DIR + File.separator + DEFAULT_SSH_PRIVATE_KEY;
 
   private final AtomicBoolean versionWarningLogged = new AtomicBoolean();
 
@@ -561,7 +568,7 @@ public class HeliosClient implements AutoCloseable {
 
   public ListenableFuture<List<String>> listMastersAuthed()
       throws ExecutionException, InterruptedException, InvalidInputException, KeyNotFoundException,
-             SignerException {
+             SignerException, IOException {
     final Response r = request(uri("/masters/authed"), "GET").get();
     if (r.getStatus() == 401) {
       final List<String> authHeaders = r.getHeaders().get(HttpHeaders.WWW_AUTHENTICATE);
@@ -572,7 +579,7 @@ public class HeliosClient implements AutoCloseable {
         log.info("This client doesn't support auth scheme '%s'.", authHeaders.get(0));
       }
 
-      final String authRequest = CrtAuthClient.createRequest("test");
+      final String authRequest = CrtAuthClient.createRequest("dxia");
       final Response r2 = request(uri("/_auth"), "GET", null, ImmutableMap.of(
           "X-CHAP", singletonList("request:" + authRequest))).get();
 
@@ -632,35 +639,10 @@ public class HeliosClient implements AutoCloseable {
     return Futures.immediateFuture(Collections.<String>emptyList());
   }
 
-  private static CrtAuthClient makeCrtAuthClient() {
-    final String privateKeyStr =
-        "-----BEGIN RSA PRIVATE KEY-----\n" +
-        "MIIEogIBAAKCAQEAytMDYYBpRWXwaEQUvjPMBqMjjlbp2GI3mqEVyhSn4cdvPGSK\n" +
-        "PO1jHzeouSp1Ex9wP5mJVZyuG4XIUunVBYrGl3FEbxYGOOqVEhri02cU3vWpyCEf\n" +
-        "4k/lfvDEQx1330RjgixEFJdJXmE4bdHXO68WluNnfN8gu7rgiEm4FqjgDbzJGWKm\n" +
-        "Y2nozjhlaZAKcSxhvCvEbzQQTPE2KhNw0B0skVVOkvR1i21hfovFtoeAi19kLqHX\n" +
-        "9HNXXKpX7QpR43SMnnf80CoQKPhQ3CazftmQydJpGC1ZSQ2bi5Pyv70jsA98F4W8\n" +
-        "t3HRwrMZ0X8tmJZ7d9VRdGlbZYVuCCfuZjM5swIDAQABAoIBADtnoHbfQHYGDGrN\n" +
-        "ffHTg+9xuslG5YjuA3EzuwkMEbvMSOU8YUzFDqInEDDjoZSvQZYvJw0/LbN79Jds\n" +
-        "S2srIU1b7HpIzhu/gVfjLgpTB8bh1w95vDfxxLrwU9uAdwqaojaPNoV9ZgzRltB7\n" +
-        "hHnDp28cPcRSKekyK+9fAB8K6Uy8N00hojBDwtwXM8C4PpQKod38Vd0Adp9dEdX6\n" +
-        "Ro9suYb+d+qFalYbKIbjKWkll+ZiiGJjF1HSQCTwlzS2haPXUlbk57HnN+8ar+a3\n" +
-        "ITTc2gbNuTqBRD1V/gCaD9F0npVI3mQ34eUADNVVGS0xw0pN4j++Da8KXP+pyn/G\n" +
-        "DU/n8SECgYEA/KN4BTrg/LB7cGrzkMQmW26NA++htjiWHK3WTsQBKBDFyReJBn67\n" +
-        "o9kMTHBP35352RfuJ3xEEJ0/ddqGEY/SzNk3HMTlxBbR5Xq8ye102dxfEO3eijJ/\n" +
-        "F4VRSf9sFgdRoLvE62qLudytK4Ku9nnKoIqrMxFweTpwxzf2jjIKDbECgYEAzYXe\n" +
-        "QxT1A/bfs5Qd6xoCVOAb4T/ALqFo95iJu4EtFt7nvt7avqL+Vsdxu5uBkTeEUHzh\n" +
-        "1q47LFoFdGm+MesIIiPSSrbfZJ6ht9kw8EbF8Py85X4LBXey67JlzzUq+ewFEP91\n" +
-        "do7uGQAY+BRwXtzzPqaVBVa94YOxdq/AGutrIqMCgYBr+cnQImwKU7tOPse+tbbX\n" +
-        "GRa3+fEZmnG97CZOH8OGxjRiT+bGmd/ElX2GJfJdVn10ZZ/pzFii6TI4Qp9OXjPw\n" +
-        "TV4as6Sn/EDVXXHWs+BfRKp059VXJ2HeQaKOh9ZAS/x9QANXwn/ZfhGdKQtyWHdb\n" +
-        "yiiFeQyjI3EUFD0SZRya4QKBgA1QvQOvmeg12Gx0DjQrLTd+hY/kZ3kd8AUKlvHU\n" +
-        "/qzaqD0PhzCOstfAeDflbVGRPTtRu/gCtca71lqidzYYuiAsHfXFP1fvhx64LZmD\n" +
-        "nFNurHZZ4jDqfmcS2dHA6hXjGrjtNBkITZjFDtkTyev7eK74b/M2mXrA44CDBnk4\n" +
-        "A2rtAoGAMv92fqI+B5taxlZhTLAIaGVFbzoASHTRl3eQJbc4zc38U3Zbiy4deMEH\n" +
-        "3QTXq7nxWpE4YwHbgXAeJUGfUpE+nEZGMolj1Q0ueKuSstQg5p1nwhQIxej8EJW+\n" +
-        "7siqmOTZDKzieik7KVzaJ/U02Q186smezKIuAOYtT8VCf9UksJ4=\n" +
-        "-----END RSA PRIVATE KEY-----";
+  private static CrtAuthClient makeCrtAuthClient() throws IOException {
+    final String userHome = System.getProperty("user.home");
+    final String sshPrivateKeyPath = userHome + File.separator + DEFAULT_SSH_PRIVATE_KEY_PATH;
+    final String privateKeyStr = CharStreams.toString(new FileReader(sshPrivateKeyPath));
 
     PrivateKey privateKey;
     try {
@@ -671,7 +653,10 @@ public class HeliosClient implements AutoCloseable {
       throw new RuntimeException(e);
     }
 
-    SingleKeySigner singleKeySigner = new SingleKeySigner(privateKey);
+//    Signer signer = new AgentSigner();
+//    return new CrtAuthClient(signer, "localhost");
+
+    final SingleKeySigner singleKeySigner = new SingleKeySigner(privateKey);
     return new CrtAuthClient(singleKeySigner, "localhost");
   }
 
