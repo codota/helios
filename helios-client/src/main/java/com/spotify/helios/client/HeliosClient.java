@@ -33,6 +33,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureFallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -41,6 +42,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.spotify.crtauth.CrtAuthClient;
+import com.spotify.crtauth.exceptions.InvalidInputException;
+import com.spotify.crtauth.exceptions.KeyNotFoundException;
+import com.spotify.crtauth.exceptions.SignerException;
+import com.spotify.crtauth.signer.SingleKeySigner;
+import com.spotify.crtauth.utils.TraditionalKeyParser;
 import com.spotify.helios.common.HeliosException;
 import com.spotify.helios.common.Json;
 import com.spotify.helios.common.Resolver;
@@ -83,7 +89,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
-import java.util.Arrays;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.RSAPrivateKeySpec;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +105,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.ws.rs.core.HttpHeaders;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -127,6 +136,7 @@ public class HeliosClient implements AutoCloseable {
   private static final List<String> VALID_PROTOCOLS = ImmutableList.of("http", "https");
   private static final String VALID_PROTOCOLS_STR =
       String.format("[%s]", Joiner.on("|").join(VALID_PROTOCOLS));
+  private static final String CRT_AUTH_SCHEME = "X-CHAP";
 
   private final AtomicBoolean versionWarningLogged = new AtomicBoolean();
 
@@ -256,13 +266,13 @@ public class HeliosClient implements AutoCloseable {
         URI realUri = connection.getURL().toURI();
         if (log.isTraceEnabled()) {
           log.trace("rep: {} {} {} {} {} {} gzip:{}",
-                    method, realUri, status, payload.size(), decode(payload), headers, gzip);
+                    method, realUri, status, headers, payload.size(), decode(payload), gzip);
         } else {
-          log.debug("rep: {} {} {} {} gzip:{}",
-                    method, realUri, status, payload.size(), headers, gzip);
+          log.debug("rep: {} {} {} {} {} gzip:{}",
+                    method, realUri, status, headers, payload.size(), gzip);
         }
         checkprotocolVersionStatus(connection);
-        return new Response(method, uri, status, payload.toByteArray());
+        return new Response(method, uri, status, headers, payload.toByteArray());
       }
 
       private boolean isGzipCompressed(final HttpURLConnection connection) {
@@ -550,18 +560,119 @@ public class HeliosClient implements AutoCloseable {
   }
 
   public ListenableFuture<List<String>> listMastersAuthed()
-      throws ExecutionException, InterruptedException {
+      throws ExecutionException, InterruptedException, InvalidInputException, KeyNotFoundException,
+             SignerException {
     final Response r = request(uri("/masters/authed"), "GET").get();
     if (r.getStatus() == 401) {
+      final List<String> authHeaders = r.getHeaders().get(HttpHeaders.WWW_AUTHENTICATE);
+      if (authHeaders.size() < 1) {
+        log.info("something went wrong");
+      }
+      if (!authHeaders.get(0).equals(CRT_AUTH_SCHEME)) {
+        log.info("This client doesn't support auth scheme '%s'.", authHeaders.get(0));
+      }
+
       final String authRequest = CrtAuthClient.createRequest("test");
       final Response r2 = request(uri("/_auth"), "GET", null, ImmutableMap.of(
           "X-CHAP", singletonList("request:" + authRequest))).get();
-      System.out.println(r2.getStatus());
-      final String s = Arrays.toString(r2.getPayload());
-      System.out.println(s);
+
+      if (r2.getStatus() != 200) {
+        log.info("crt auth request failed with status code %d", r2.getStatus());
+      }
+
+      Map<String, List<String>> headers = r2.getHeaders();
+      final List<String> xChapHeader = headers.get("X-CHAP");
+      if (xChapHeader == null || xChapHeader.size() < 1) {
+        log.info("crt auth request failed to get X-CHAP header in reply.");
+      }
+
+      assert xChapHeader != null;
+      final String[] challengeParts = xChapHeader.get(0).split(":");
+      if (challengeParts.length != 2) {
+        log.info("crt auth request failed to get valid challenge: '%s'.", xChapHeader.get(0));
+      }
+
+      final String challenge = challengeParts[1];
+      log.debug("Got CRT auth challenge %s", challenge);
+
+      final CrtAuthClient crtAuthClient = makeCrtAuthClient();
+      final String response = crtAuthClient.createResponse(challenge);
+      final Response r3 = request(uri("/_auth"), "GET", null, ImmutableMap.of(
+          "X-CHAP", singletonList("response:" + response))).get();
+
+      if (r3.getStatus() != 200) {
+        log.info("crt auth response failed with status code %d", r3.getStatus());
+      }
+
+      final Map<String, List<String>> headers2 = r3.getHeaders();
+      final List<String> xChapHeader2 = headers2.get("X-CHAP");
+      if (xChapHeader2 == null || xChapHeader2.size() < 1) {
+        log.info("crt auth response failed to get X-CHAP header in reply.");
+      }
+
+      assert xChapHeader2 != null;
+      final String[] tokenParts = xChapHeader2.get(0).split(":");
+      if (tokenParts.length != 2) {
+        log.info("crt auth response failed to get valid token: '%s'.", xChapHeader2.get(0));
+      }
+
+      final String token = tokenParts[1];
+      log.debug("Got CRT auth token %s", token);
+
+      final Response r4 = request(uri("/masters/authed"), "GET", null, ImmutableMap.of(
+          "Authorization", singletonList("chap:" + token))).get();
+      if (r4.getStatus() != 200) {
+        log.info("authed master response failed with status code %d", r4.getStatus());
+      }
+
+      List<String> ret = ImmutableList.of(new String(r4.getPayload()));
+      return Futures.immediateFuture(ret);
     }
-    return get(uri("/masters/"), new TypeReference<List<String>>() {
-    });
+
+    return Futures.immediateFuture(Collections.<String>emptyList());
+  }
+
+  private static CrtAuthClient makeCrtAuthClient() {
+    final String privateKeyStr =
+        "-----BEGIN RSA PRIVATE KEY-----\n" +
+        "MIIEogIBAAKCAQEAytMDYYBpRWXwaEQUvjPMBqMjjlbp2GI3mqEVyhSn4cdvPGSK\n" +
+        "PO1jHzeouSp1Ex9wP5mJVZyuG4XIUunVBYrGl3FEbxYGOOqVEhri02cU3vWpyCEf\n" +
+        "4k/lfvDEQx1330RjgixEFJdJXmE4bdHXO68WluNnfN8gu7rgiEm4FqjgDbzJGWKm\n" +
+        "Y2nozjhlaZAKcSxhvCvEbzQQTPE2KhNw0B0skVVOkvR1i21hfovFtoeAi19kLqHX\n" +
+        "9HNXXKpX7QpR43SMnnf80CoQKPhQ3CazftmQydJpGC1ZSQ2bi5Pyv70jsA98F4W8\n" +
+        "t3HRwrMZ0X8tmJZ7d9VRdGlbZYVuCCfuZjM5swIDAQABAoIBADtnoHbfQHYGDGrN\n" +
+        "ffHTg+9xuslG5YjuA3EzuwkMEbvMSOU8YUzFDqInEDDjoZSvQZYvJw0/LbN79Jds\n" +
+        "S2srIU1b7HpIzhu/gVfjLgpTB8bh1w95vDfxxLrwU9uAdwqaojaPNoV9ZgzRltB7\n" +
+        "hHnDp28cPcRSKekyK+9fAB8K6Uy8N00hojBDwtwXM8C4PpQKod38Vd0Adp9dEdX6\n" +
+        "Ro9suYb+d+qFalYbKIbjKWkll+ZiiGJjF1HSQCTwlzS2haPXUlbk57HnN+8ar+a3\n" +
+        "ITTc2gbNuTqBRD1V/gCaD9F0npVI3mQ34eUADNVVGS0xw0pN4j++Da8KXP+pyn/G\n" +
+        "DU/n8SECgYEA/KN4BTrg/LB7cGrzkMQmW26NA++htjiWHK3WTsQBKBDFyReJBn67\n" +
+        "o9kMTHBP35352RfuJ3xEEJ0/ddqGEY/SzNk3HMTlxBbR5Xq8ye102dxfEO3eijJ/\n" +
+        "F4VRSf9sFgdRoLvE62qLudytK4Ku9nnKoIqrMxFweTpwxzf2jjIKDbECgYEAzYXe\n" +
+        "QxT1A/bfs5Qd6xoCVOAb4T/ALqFo95iJu4EtFt7nvt7avqL+Vsdxu5uBkTeEUHzh\n" +
+        "1q47LFoFdGm+MesIIiPSSrbfZJ6ht9kw8EbF8Py85X4LBXey67JlzzUq+ewFEP91\n" +
+        "do7uGQAY+BRwXtzzPqaVBVa94YOxdq/AGutrIqMCgYBr+cnQImwKU7tOPse+tbbX\n" +
+        "GRa3+fEZmnG97CZOH8OGxjRiT+bGmd/ElX2GJfJdVn10ZZ/pzFii6TI4Qp9OXjPw\n" +
+        "TV4as6Sn/EDVXXHWs+BfRKp059VXJ2HeQaKOh9ZAS/x9QANXwn/ZfhGdKQtyWHdb\n" +
+        "yiiFeQyjI3EUFD0SZRya4QKBgA1QvQOvmeg12Gx0DjQrLTd+hY/kZ3kd8AUKlvHU\n" +
+        "/qzaqD0PhzCOstfAeDflbVGRPTtRu/gCtca71lqidzYYuiAsHfXFP1fvhx64LZmD\n" +
+        "nFNurHZZ4jDqfmcS2dHA6hXjGrjtNBkITZjFDtkTyev7eK74b/M2mXrA44CDBnk4\n" +
+        "A2rtAoGAMv92fqI+B5taxlZhTLAIaGVFbzoASHTRl3eQJbc4zc38U3Zbiy4deMEH\n" +
+        "3QTXq7nxWpE4YwHbgXAeJUGfUpE+nEZGMolj1Q0ueKuSstQg5p1nwhQIxej8EJW+\n" +
+        "7siqmOTZDKzieik7KVzaJ/U02Q186smezKIuAOYtT8VCf9UksJ4=\n" +
+        "-----END RSA PRIVATE KEY-----";
+
+    PrivateKey privateKey;
+    try {
+      RSAPrivateKeySpec privateKeySpec = TraditionalKeyParser.parsePemPrivateKey(privateKeyStr);
+      KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+      privateKey = keyFactory.generatePrivate(privateKeySpec);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    SingleKeySigner singleKeySigner = new SingleKeySigner(privateKey);
+    return new CrtAuthClient(singleKeySigner, "localhost");
   }
 
   public ListenableFuture<VersionResponse> version() {
@@ -786,9 +897,11 @@ public class HeliosClient implements AutoCloseable {
     private final String method;
     private final URI uri;
     private final int status;
+    private final Map<String, List<String>> headers;
     private final byte[] payload;
 
-    public Response(final String method, final URI uri, final int status, final byte[] payload, final Map) {
+    public Response(final String method, final URI uri, final int status,
+                    Map<String, List<String>> headers, final byte[] payload) {
       this.method = method;
       this.uri = uri;
       this.status = status;
@@ -798,6 +911,10 @@ public class HeliosClient implements AutoCloseable {
 
     public int getStatus() {
       return status;
+    }
+
+    public Map<String, List<String>> getHeaders() {
+      return headers;
     }
 
     public byte[] getPayload() {

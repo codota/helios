@@ -37,13 +37,17 @@ public class CrtAuthenticator implements Authenticator<String, User> {
   }
 
   @Override
-  public Optional<User> authenticate(final String s) throws AuthenticationException {
+  public Optional<User> authenticate(final String token) throws AuthenticationException {
     final String username;
     try {
-      username = crtAuthServer.validateToken(s.split(":")[1]);
+      final String[] tokenParts = token.split(":");
+      if (tokenParts.length == 2) {
+        username = crtAuthServer.validateToken(tokenParts[1]);
+        return Optional.of(new User(username));
+      }
     } catch (Exception e) {
       return Optional.absent();
     }
-    return Optional.of(new User(username));
+    return Optional.absent();
   }
 }

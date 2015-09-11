@@ -38,7 +38,8 @@ public class CrtAuthServerFactory {
   private static final String PUBLIC_KEY;
   static {
     try {
-      PUBLIC_KEY = CharStreams.toString(new FileReader("/Users/dxia/src/helios/id_rsa.pub")).trim();
+      PUBLIC_KEY = CharStreams.toString(
+          new FileReader("/Users/david/src/helios/id_rsa.pub")).trim();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -61,7 +62,7 @@ public class CrtAuthServerFactory {
     return new CrtAuthServer.Builder()
         .setServerName("localhost")
         .setKeyProvider(keyProvider)
-        .setSecret(new byte[] {(byte)0xde, (byte)0xad, (byte)0xbe, (byte)0xef})
+        .setSecret(new byte[] {(byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef})
         .build();
   }
 }

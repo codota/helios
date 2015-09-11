@@ -847,7 +847,7 @@ public class ZooKeeperMasterModel implements MasterModel {
         try {
           final String token =
               firstNonNull(deploymentGroup.getRolloutOptions().getToken(), Job.EMPTY_TOKEN);
-          operations.addAll(getUndeployOperations( client, host, deployment.getJobId(), token));
+          operations.addAll(getUndeployOperations(client, host, deployment.getJobId(), token));
         } catch (TokenVerificationException e) {
           return opFactory.error(e, host, RollingUpdateError.TOKEN_VERIFICATION_ERROR);
         } catch (HostNotFoundException e) {

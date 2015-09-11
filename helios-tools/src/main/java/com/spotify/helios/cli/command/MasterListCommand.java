@@ -23,6 +23,9 @@ package com.spotify.helios.cli.command;
 
 import com.google.common.collect.Sets;
 
+import com.spotify.crtauth.exceptions.InvalidInputException;
+import com.spotify.crtauth.exceptions.KeyNotFoundException;
+import com.spotify.crtauth.exceptions.SignerException;
 import com.spotify.helios.client.HeliosClient;
 import com.spotify.helios.common.Json;
 
@@ -58,20 +61,26 @@ public class MasterListCommand extends ControlCommand {
       throws ExecutionException, InterruptedException {
 
 //    final List<String> masters = client.listMasters().get();
-    final List<String> masters = client.listMastersAuthed().get();
-    final boolean full = options.getBoolean(fullArg.getDest());
+    final List<String> masters;
+    try {
+      masters = client.listMastersAuthed().get();
+      final boolean full = options.getBoolean(fullArg.getDest());
 
-    final SortedSet<String> sortedMasters = Sets.newTreeSet();
+      final SortedSet<String> sortedMasters = Sets.newTreeSet();
 
-    if (json) {
-      for (final String host : masters) {
-        sortedMasters.add(formatHostname(full, host));
+      if (json) {
+        for (final String host : masters) {
+          sortedMasters.add(formatHostname(full, host));
+        }
+        out.println(Json.asPrettyStringUnchecked(sortedMasters));
+      } else {
+        for (final String host : masters) {
+          out.println(formatHostname(full, host));
+        }
       }
-      out.println(Json.asPrettyStringUnchecked(sortedMasters));
-    } else {
-      for (final String host : masters) {
-        out.println(formatHostname(full, host));
-      }
+
+    } catch (InvalidInputException | KeyNotFoundException | SignerException e) {
+      e.printStackTrace();
     }
 
     return 0;

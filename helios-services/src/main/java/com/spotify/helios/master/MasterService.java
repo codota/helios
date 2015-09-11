@@ -30,6 +30,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import com.codahale.metrics.MetricRegistry;
 import com.spotify.crtauth.CrtAuthServer;
 import com.spotify.helios.agent.KafkaClientProvider;
+import com.spotify.helios.master.auth.CrtAuthProvider;
 import com.spotify.helios.master.auth.CrtAuthServerFactory;
 import com.spotify.helios.master.auth.CrtAuthenticator;
 import com.spotify.helios.master.http.VersionResponseFilter;
@@ -86,7 +87,6 @@ import javax.servlet.DispatcherType;
 import javax.servlet.FilterRegistration;
 
 import ch.qos.logback.access.jetty.RequestLogImpl;
-import io.dropwizard.auth.oauth.OAuthProvider;
 import io.dropwizard.configuration.ConfigurationException;
 import io.dropwizard.jetty.GzipFilterFactory;
 import io.dropwizard.jetty.RequestLogFactory;
@@ -214,7 +214,7 @@ public class MasterService extends AbstractIdleService {
     environment.jersey().register(new VersionResource());
     environment.jersey().register(new UserProvider());
     environment.jersey().register(new DeploymentGroupResource(model));
-    environment.jersey().register(new OAuthProvider<>(crtAuthenticator, "SUPER SECRET STUFF"));
+    environment.jersey().register(new CrtAuthProvider<>(crtAuthenticator));
 
     final DefaultServerFactory serverFactory = ServiceUtil.createServerFactory(
         config.getHttpEndpoint(), config.getAdminPort(), false);
