@@ -32,6 +32,8 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 
+import static net.sourceforge.argparse4j.impl.Arguments.fileType;
+
 /**
  * Parses command-line arguments to produce the {@link MasterConfig}.
  */
@@ -92,6 +94,7 @@ public class MasterParser extends ServiceParser {
         .help("admin http port");
 
     authPluginArg = parser.addArgument("--auth-plugin")
+        .type(fileType().verifyExists().verifyCanRead())
         .help("Path to authenticator plugin.");
   }
 

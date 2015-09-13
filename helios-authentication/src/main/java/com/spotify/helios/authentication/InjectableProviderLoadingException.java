@@ -21,10 +21,14 @@
 
 package com.spotify.helios.authentication;
 
-import com.google.common.base.Optional;
+import java.util.ServiceConfigurationError;
 
-public interface Authenticator {
+/**
+ * Indicates that an error occurred during authenticator plugin loading.
+ */
+public class InjectableProviderLoadingException extends Exception {
 
-  Optional<User> authenticate(String token);
-
+  InjectableProviderLoadingException(final String message, final ServiceConfigurationError e) {
+    super(message, e);
+  }
 }

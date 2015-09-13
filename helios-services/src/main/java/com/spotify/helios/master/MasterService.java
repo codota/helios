@@ -29,8 +29,6 @@ import com.google.common.util.concurrent.AbstractIdleService;
 
 import com.codahale.metrics.MetricRegistry;
 import com.spotify.helios.agent.KafkaClientProvider;
-import com.spotify.helios.authentication.Authenticator;
-import com.spotify.helios.authentication.Authenticators;
 import com.spotify.helios.master.http.VersionResponseFilter;
 import com.spotify.helios.master.metrics.ReportingResourceMethodDispatchAdapter;
 import com.spotify.helios.master.resources.DeploymentGroupResource;
@@ -60,6 +58,7 @@ import com.spotify.helios.servicescommon.coordination.ZooKeeperModelReporter;
 import com.spotify.helios.servicescommon.statistics.Metrics;
 import com.spotify.helios.servicescommon.statistics.MetricsImpl;
 import com.spotify.helios.servicescommon.statistics.NoopMetrics;
+import com.sun.jersey.spi.inject.InjectableProvider;
 
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -108,7 +107,8 @@ public class MasterService extends AbstractIdleService {
   private final ExpiredJobReaper expiredJobReaper;
   private final CuratorClientFactory curatorClientFactory;
   private final RollingUpdateService rollingUpdateService;
-  private final Authenticator authenticator;
+//  private final Authenticator<String, User> authenticator;
+  private final InjectableProvider authProvider;
 
   private ZooKeeperRegistrar zkRegistrar;
 
@@ -195,8 +195,10 @@ public class MasterService extends AbstractIdleService {
 
 
     // Set up authenticator
-    this.authenticator =
-        Authenticators.createAuthenticator(config.getAuthPlugin(), config.getAuthSecret());
+//    this.authenticator =
+//        Authenticators.createAuthenticator(config.getAuthPlugin(), config.getAuthSecret());
+    this.authProvider = InjectableProviders.createInjectableProvider(
+        config.getAuthPlugin(), config.getAuthSecret());
 
 //    final CrtAuthServer crtAuthServer = CrtAuthServerFactory.makeCrtAuthServer(
 //        config.getAuthPlugin(), config.getAuthSecret().getBytes());
@@ -217,6 +219,8 @@ public class MasterService extends AbstractIdleService {
     environment.jersey().register(new UserProvider());
     environment.jersey().register(new DeploymentGroupResource(model));
 //    environment.jersey().register(new CrtAuthProvider<>(crtAuthenticator));
+    environment.jersey().register(authProvider);
+//    environment.jersey().register(new BasicAuthProvider<>(authenticator));
 
     final DefaultServerFactory serverFactory = ServiceUtil.createServerFactory(
         config.getHttpEndpoint(), config.getAdminPort(), false);

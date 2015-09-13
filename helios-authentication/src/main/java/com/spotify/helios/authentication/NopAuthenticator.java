@@ -23,13 +23,16 @@ package com.spotify.helios.authentication;
 
 import com.google.common.base.Optional;
 
+import io.dropwizard.auth.AuthenticationException;
+import io.dropwizard.auth.Authenticator;
+
 /**
  * A nop authenticator that does nothing. Useful as an alternative to null.
  */
 public class NopAuthenticator implements Authenticator {
 
   @Override
-  public Optional<User> authenticate(final String token) {
-    return Optional.of(new User("nop"));
+  public Optional authenticate(Object credentials) throws AuthenticationException {
+    return null;
   }
 }

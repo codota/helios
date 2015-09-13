@@ -21,12 +21,23 @@
 
 package com.spotify.helios.authentication;
 
-import com.google.common.base.Optional;
+import com.sun.jersey.api.model.Parameter;
+import com.sun.jersey.spi.inject.InjectableProvider;
+
+import io.dropwizard.auth.Auth;
 
 /**
- * Looks up a user name, and returns the user name if found. NOTE: if we need more user information
- * at some point, we should extend this interface.
+ * A factory for a nop authenticator.
  */
-public interface UserProvider {
-  Optional<String> lookup(String name);
+public class NopInjectableProviderFactory implements InjectableProviderFactory {
+
+  @Override
+  public InjectableProvider<Auth, Parameter> create() {
+    return new NopInjectableProvider();
+  }
+
+  @Override
+  public InjectableProvider<Auth, Parameter> createWithSecret(String secret) {
+    return new NopInjectableProvider();
+  }
 }

@@ -21,6 +21,8 @@
 
 package com.spotify.helios.authentication;
 
+import io.dropwizard.auth.Authenticator;
+
 /**
  * A factory for {@link Authenticator} instances, and the entry point for service registrar
  * plugins. {@link AuthenticatorLoader} loads plugins by using {@link java.util.ServiceLoader}
@@ -34,7 +36,7 @@ public interface AuthenticatorFactory {
    *
    * @return An {@link Authenticator }
    */
-  Authenticator create();
+  Authenticator<String, User> create();
 
   /**
    * Create an authenticator. The secret format and semantics are implementation dependent.
@@ -42,6 +44,6 @@ public interface AuthenticatorFactory {
    * @param secret A secret for the authenticator.
    * @return An {@link Authenticator }
    */
-  Authenticator createWithSecret(String secret);
+  Authenticator<String, User> createWithSecret(String secret);
 }
 

@@ -35,79 +35,85 @@ import java.util.ServiceLoader;
 import static java.util.Arrays.asList;
 
 /**
- * Helpers for loading {@link AuthenticatorFactory} instances.
+ * Helpers for loading {@link InjectableProviderFactory} instances.
  */
-public class AuthenticatorLoader {
+public class InjectableProviderLoader {
 
   private static final List<Package> PROVIDED = asList(Logger.class.getPackage(),
-                                                       AuthenticatorLoader.class.getPackage());
+                                                       InjectableProviderLoader.class.getPackage());
 
-  private static final ClassLoader CURRENT = AuthenticatorLoader.class.getClassLoader();
+  private static final ClassLoader CURRENT = InjectableProviderLoader.class.getClassLoader();
 
   /**
-   * Load a {@link AuthenticatorFactory} using the current class loader.
+   * Load a {@link InjectableProviderFactory} using the current class loader.
    *
-   * @return A {@link AuthenticatorFactory}, null if none could be found.
-   * @throws AuthenticatorLoadingException if loading failed.
+   * @return A {@link InjectableProviderFactory}, null if none could be found.
+   * @throws InjectableProviderLoadingException if loading failed.
    */
-  public static AuthenticatorFactory load() throws AuthenticatorLoadingException {
+  public static InjectableProviderFactory load() throws InjectableProviderLoadingException {
     return load("classpath", CURRENT);
   }
 
   /**
-   * Load a {@link AuthenticatorFactory} from a plugin jar file with a parent class loader that
+   * Load a {@link InjectableProviderFactory} from a plugin jar file with a parent class loader that
    * will not load classes from the jvm classpath. Any dependencies of the plugin must be included
    * in the plugin jar.
    *
    * @param plugin The plugin jar file to load.
-   * @return A {@link AuthenticatorFactory}, null if none could be found.
-   * @throws AuthenticatorLoadingException if loading failed.
+   * @return A {@link InjectableProviderFactory}, null if none could be found.
+   * @throws InjectableProviderLoadingException if loading failed.
    */
-  public static AuthenticatorFactory load(final Path plugin)
-      throws AuthenticatorLoadingException {
+  public static InjectableProviderFactory load(final Path plugin)
+      throws InjectableProviderLoadingException {
     return load(plugin, CURRENT, extensionClassLoader(CURRENT));
   }
 
   /**
-   * Load a {@link AuthenticatorFactory} from a plugin jar file with a specified parent class
+   * Load a {@link InjectableProviderFactory} from a plugin jar file with a specified parent class
    * loader and a list of exposed classes.
    *
    * @param plugin      The plugin jar file to load.
    * @param environment The class loader to use for providing plugin interface dependencies.
    * @param parent      The parent class loader to assign to the class loader of the jar.
-   * @return A {@link AuthenticatorFactory}, null if none could be found.
-   * @throws AuthenticatorLoadingException if loading failed.
+   * @return A {@link InjectableProviderFactory}, null if none could be found.
+   * @throws InjectableProviderLoadingException if loading failed.
    */
-  public static AuthenticatorFactory load(final Path plugin,
+  public static InjectableProviderFactory load(final Path plugin,
                                              final ClassLoader environment,
                                              final ClassLoader parent)
-      throws AuthenticatorLoadingException {
+      throws InjectableProviderLoadingException {
     return load("plugin jar file: " + plugin, pluginClassLoader(plugin, environment, parent));
   }
 
   /**
-   * Load a {@link AuthenticatorFactory} using a class loader.
+   * Load a {@link InjectableProviderFactory} using a class loader.
    *
    * @param source      The source of the class loader.
    * @param classLoader The class loader to load from.
-   * @return A {@link AuthenticatorFactory}, null if none could be found.
-   * @throws AuthenticatorLoadingException if loading failed.
+   * @return A {@link InjectableProviderFactory}, null if none could be found.
+   * @throws InjectableProviderLoadingException if loading failed.
    */
-  public static AuthenticatorFactory load(final String source, final ClassLoader classLoader)
-      throws AuthenticatorLoadingException {
-    final ServiceLoader<AuthenticatorFactory> loader;
+  public static InjectableProviderFactory load(final String source, final ClassLoader classLoader)
+      throws InjectableProviderLoadingException {
+    final ServiceLoader<InjectableProviderFactory> loader;
     try {
-      loader = ServiceLoader.load(AuthenticatorFactory.class, classLoader);
+      loader = ServiceLoader.load(InjectableProviderFactory.class, classLoader);
     } catch (ServiceConfigurationError e) {
-      throw new AuthenticatorLoadingException(
+      throw new InjectableProviderLoadingException(
           "Failed to load service registrar from " + source, e);
     }
-    final Iterator<AuthenticatorFactory> iterator = loader.iterator();
+    final Iterator<InjectableProviderFactory> iterator = loader.iterator();
     if (iterator.hasNext()) {
-      return iterator.next();
+      try {
+        InjectableProviderFactory next = iterator.next();
+        return next;
+      } catch (ServiceConfigurationError e) {
+        System.out.println(e);
+      }
     } else {
       return null;
     }
+    return null;
   }
 
   /**
@@ -161,11 +167,7 @@ public class AuthenticatorLoader {
     protected Class<?> findClass(final String name) throws ClassNotFoundException {
       for (final Package pkg : packages) {
         if (name.startsWith(pkg.getName())) {
-          try {
-            return environment.loadClass(name);
-          } catch (Exception e) {
-            System.out.println(e);
-          }
+          return environment.loadClass(name);
         }
       }
       return super.findClass(name);

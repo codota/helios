@@ -23,9 +23,9 @@ package com.spotify.helios.cli.command;
 
 import com.google.common.collect.Sets;
 
-import com.spotify.crtauth.exceptions.InvalidInputException;
-import com.spotify.crtauth.exceptions.KeyNotFoundException;
-import com.spotify.crtauth.exceptions.SignerException;
+//import com.spotify.crtauth.exceptions.InvalidInputException;
+//import com.spotify.crtauth.exceptions.KeyNotFoundException;
+//import com.spotify.crtauth.exceptions.SignerException;
 import com.spotify.helios.client.HeliosClient;
 import com.spotify.helios.common.Json;
 
@@ -80,7 +80,7 @@ public class MasterListCommand extends ControlCommand {
         }
       }
 
-    } catch (InvalidInputException | KeyNotFoundException | SignerException e) {
+    } catch (Exception e) {
       e.printStackTrace();
     }
 

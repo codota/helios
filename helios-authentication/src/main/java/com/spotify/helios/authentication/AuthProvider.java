@@ -21,20 +21,8 @@
 
 package com.spotify.helios.authentication;
 
-import io.dropwizard.auth.Authenticator;
+public interface AuthProvider {
 
-/**
- * A factory for a nop authenticator.
- */
-public class NopAuthenticatorFactory implements AuthenticatorFactory {
+  User authenticate(String token);
 
-  @Override
-  public Authenticator create() {
-    return new NopAuthenticator();
-  }
-
-  @Override
-  public Authenticator createWithSecret(final String secret) {
-    return new NopAuthenticator();
-  }
 }
