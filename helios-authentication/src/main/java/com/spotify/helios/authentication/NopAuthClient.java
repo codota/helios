@@ -21,20 +21,10 @@
 
 package com.spotify.helios.authentication;
 
-import com.sun.jersey.api.model.Parameter;
-import com.sun.jersey.spi.inject.InjectableProvider;
-
-import io.dropwizard.auth.Auth;
-
-public class NopInjectableWithAuthorizer implements InjectableWithAuthorizer {
+public class NopAuthClient implements AuthClient {
 
   @Override
-  public InjectableProvider<Auth, Parameter> getInjectableProvider() {
-    return new NopInjectableProvider();
-  }
-
-  @Override
-  public Authorizer getAuthorier() {
-    return new NopAuthorizer();
+  public String getToken(final String username) {
+    return null;
   }
 }

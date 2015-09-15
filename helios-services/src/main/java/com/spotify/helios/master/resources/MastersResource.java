@@ -53,19 +53,6 @@ public class MastersResource {
   @Produces(APPLICATION_JSON)
   @Timed
   @ExceptionMetered
-  public List<String> list() {
-    return model.getRunningMasters();
-  }
-
-  /**
-   * Returns a list of names of running Helios masters.
-   * @return The list of names.
-   */
-  @GET
-  @Path("/authed")
-  @Produces(APPLICATION_JSON)
-  @Timed
-  @ExceptionMetered
   public List<String> list(@Auth User user) {
     return model.getRunningMasters();
   }

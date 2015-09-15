@@ -64,9 +64,11 @@ import net.sourceforge.argparse4j.inf.Namespace;
 import net.sourceforge.argparse4j.inf.Subparser;
 import net.sourceforge.argparse4j.inf.Subparsers;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -80,6 +82,7 @@ import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static net.sourceforge.argparse4j.impl.Arguments.SUPPRESS;
 import static net.sourceforge.argparse4j.impl.Arguments.append;
+import static net.sourceforge.argparse4j.impl.Arguments.fileType;
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 
 public class CliParser {
@@ -99,6 +102,7 @@ public class CliParser {
   private final List<Target> targets;
   private final String username;
   private boolean json;
+  private Path authPlugin;
 
   public CliParser(final String... args)
       throws ArgumentParserException, IOException, URISyntaxException {
@@ -151,6 +155,9 @@ public class CliParser {
 
     // TODO (dano): complex, refactor and unit test it
     this.targets = computeTargets(parser, explicitEndpoints, domains, srvName);
+
+    final File plugin = options.get(globalArgs.authPluginArg.getDest());
+    this.authPlugin = plugin != null ? plugin.toPath() : null;
   }
 
   private List<Target> computeTargets(final ArgumentParser parser,
@@ -272,6 +279,7 @@ public class CliParser {
 
     private final ArgumentGroup globalArgs;
     private final boolean topLevel;
+    private final Argument authPluginArg;
 
 
     GlobalArgs(final ArgumentParser parser, final CliConfig cliConfig) {
@@ -313,6 +321,10 @@ public class CliParser {
       noLogSetup = addArgument("--no-log-setup")
           .action(storeTrue())
           .help(SUPPRESS);
+
+      authPluginArg = parser.addArgument("--auth-plugin")
+          .type(fileType().verifyExists().verifyCanRead())
+          .help("Path to authenticator plugin.");
     }
 
     private Argument addArgument(final String... nameOrFlags) {
@@ -340,6 +352,10 @@ public class CliParser {
 
   public LoggingConfig getLoggingConfig() {
     return loggingConfig;
+  }
+
+  public Path getAuthPlugin() {
+    return authPlugin;
   }
 
   private Subparser p(final String name) {

@@ -29,8 +29,8 @@ import com.google.common.util.concurrent.AbstractIdleService;
 
 import com.codahale.metrics.MetricRegistry;
 import com.spotify.helios.agent.KafkaClientProvider;
-import com.spotify.helios.authentication.Authorizer;
-import com.spotify.helios.authentication.InjectableWithAuthorizer;
+import com.spotify.helios.authentication.ServerAuthProvider;
+import com.spotify.helios.authentication.AuthProviders;
 import com.spotify.helios.master.http.VersionResponseFilter;
 import com.spotify.helios.master.metrics.ReportingResourceMethodDispatchAdapter;
 import com.spotify.helios.master.resources.AuthResource;
@@ -193,20 +193,11 @@ public class MasterService extends AbstractIdleService {
     final ReactorFactory reactorFactory = new ReactorFactory();
     this.rollingUpdateService = new RollingUpdateService(model, reactorFactory);
 
-
-    // Set up authenticator
-//    this.authenticator =
-//        Authenticators.createAuthenticator(config.getAuthPlugin(), config.getAuthSecret());
-    final InjectableWithAuthorizer injectableWithAuthorizer =
-        InjectableProviders.createInjectableProvider(
-            config.getAuthPlugin(), config.getAuthSecret());
-
-    final Authorizer authorizer = injectableWithAuthorizer.getAuthorier();
-
-//    final CrtAuthServer crtAuthServer = CrtAuthServerFactory.makeCrtAuthServer(
-//        config.getAuthPlugin(), config.getAuthSecret().getBytes());
-//    final CrtAuthenticator crtAuthenticator = new CrtAuthenticator(crtAuthServer);
-    environment.jersey().register(new AuthResource(authorizer));
+    // Set up authentication
+    final ServerAuthProvider serverAuthProvider =
+        AuthProviders.createServerAuthProvider(config.getAuthPlugin(), config.getAuthSecret());
+    environment.jersey().register(serverAuthProvider.getInjectableProvider());
+    environment.jersey().register(new AuthResource(serverAuthProvider.getHttpAuthenticator()));
 
     // Set up http server
     environment.servlets()
@@ -221,8 +212,6 @@ public class MasterService extends AbstractIdleService {
     environment.jersey().register(new VersionResource());
     environment.jersey().register(new UserProvider());
     environment.jersey().register(new DeploymentGroupResource(model));
-    environment.jersey().register(injectableWithAuthorizer.getInjectableProvider());
-//    environment.jersey().register(new BasicAuthProvider<>(authenticator));
 
     final DefaultServerFactory serverFactory = ServiceUtil.createServerFactory(
         config.getHttpEndpoint(), config.getAdminPort(), false);

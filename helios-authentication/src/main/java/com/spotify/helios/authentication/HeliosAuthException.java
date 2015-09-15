@@ -21,27 +21,20 @@
 
 package com.spotify.helios.authentication;
 
-/**
- * A factory for {@link InjectableProvider} instances, and the entry point for service registrar
- * plugins. {@link InjectableProviderLoader} loads plugins by using {@link java.util.ServiceLoader}
- * to
- * look up {@link InjectableProviderFactory} from jar files and class loaders.
- */
-public interface InjectableProviderFactory {
+public class HeliosAuthException extends Exception {
+  public HeliosAuthException() {
+    super();
+  }
 
-  /**
-   * Create an authenticator.
-   *
-   * @return An {@link InjectableWithAuthorizer }
-   */
-  InjectableWithAuthorizer create();
+  public HeliosAuthException(String message) {
+    super(message);
+  }
 
-  /**
-   * Create an authenticator. The secret format and semantics are implementation dependent.
-   *
-   * @param secret A secret for the authenticator.
-   * @return An {@link InjectableWithAuthorizer }
-   */
-  InjectableWithAuthorizer createWithSecret(String secret);
+  public HeliosAuthException(Throwable throwable) {
+    super(throwable);
+  }
+
+  public HeliosAuthException(String message, Throwable cause) {
+    super(message, cause);
+  }
 }
-

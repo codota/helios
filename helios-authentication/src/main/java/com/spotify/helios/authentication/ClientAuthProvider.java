@@ -21,8 +21,8 @@
 
 package com.spotify.helios.authentication;
 
-public interface AuthProvider {
+public interface ClientAuthProvider {
 
-  User authenticate(String token);
+  AuthClient getClient();
 
 }

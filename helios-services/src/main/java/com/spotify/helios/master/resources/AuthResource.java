@@ -23,7 +23,9 @@ package com.spotify.helios.master.resources;
 
 import com.codahale.metrics.annotation.ExceptionMetered;
 import com.codahale.metrics.annotation.Timed;
-import com.spotify.helios.authentication.Authorizer;
+import com.spotify.helios.authentication.AuthHeader;
+import com.spotify.helios.authentication.HeliosAuthException;
+import com.spotify.helios.authentication.HttpAuthenticator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
 @Path("/_auth")
@@ -42,46 +45,49 @@ public class AuthResource {
 
   private static final Logger log = LoggerFactory.getLogger(AuthResource.class);
 
-  private Authorizer authorizer;
+  private HttpAuthenticator httpAuthenticator;
 
-  public AuthResource(final Authorizer authorizer) {
-    this.authorizer = authorizer;
+  public AuthResource(final HttpAuthenticator httpAuthenticator) {
+    this.httpAuthenticator = httpAuthenticator;
   }
 
   /**
    * TBA
-   * @return A Response containing CRT auth challenge or token
+   * @return A Response containing an auth challenge or token
    */
   @GET
   @Produces(APPLICATION_JSON)
   @Timed
   @ExceptionMetered
   public Response handleAuthentication(@Context HttpHeaders headers) {
-//                                       @HeaderParam("X-CHAP") String xChap) {
-    final String xChap = headers.getRequestHeaders().getFirst("X-CHAP");
-    final String[] xChapParts = xChap.split(":");
+    final String httpHeaderKey = httpAuthenticator.getHttpAuthHeaderKey();
+    final String authHeaderVal = headers.getRequestHeaders().getFirst(httpHeaderKey);
+    final AuthHeader authHeader = httpAuthenticator.parseHttpAuthHeaderValue(authHeaderVal);
 
-    if (xChapParts.length < 2) {
-      return Response.status(400).entity(
-          "X-CHAP header must be of the form <type>:<foo>").build();
+    if (authHeader.getAction() == null || isNullOrEmpty(authHeader.getValue())) {
+      return Response.status(400).entity(httpAuthenticator.badAuthHeaderMsg()).build();
     }
 
-    switch (xChapParts[0]) {
-      case "request":
+    switch (authHeader.getAction()) {
+      case REQUEST:
         try {
-          // TODO (dxia) Throw exception if this exceeds a certain amount of time.
-          String challenge = authorizer.createChallenge(xChapParts[1]);
-          return Response.ok().header("X-CHAP", "challenge:" + challenge).build();
-        } catch (IllegalArgumentException ignored) {
-          log.info("Failed to deserialize CRT auth request string '{}'. "
-                   + "Client is probably not following the CRT auth protocol or version.", xChap);
+          // TODO (dxia) This can throw org.springframework.ldap.CommunicationException
+          final String challenge = httpAuthenticator.createChallenge(authHeader.getValue());
+          return Response.ok().header(httpHeaderKey, challenge).build();
+        } catch (HeliosAuthException e) {
+          log.info("HeliosAuthException: {}", e);
           return Response.status(400).entity("You did something wrong.").build();
         }
-      case "response":
-        String token = authorizer.createToken(xChapParts[1]);
-        return Response.ok().header("X-CHAP", "token:" + token).build();
+      case RESPONSE:
+        try {
+          final String token = httpAuthenticator.createToken(authHeader.getValue());
+          return Response.ok().header(httpHeaderKey, token).build();
+        } catch (HeliosAuthException e) {
+          log.info("BadAuthException: {}", e);
+          return Response.status(Response.Status.FORBIDDEN).entity(e.getMessage()).build();
+        }
       default:
-        return Response.status(400).entity("Unknown action " + xChapParts[0]).build();
+        return Response.status(400).entity("Unknown action " + authHeader.getAction()).build();
     }
   }
 }

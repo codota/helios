@@ -34,6 +34,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -60,7 +61,7 @@ public abstract class ControlCommand implements CliCommand {
   @Override
   public int run(final Namespace options, final List<Target> targets, final PrintStream out,
                  final PrintStream err, final String username, final boolean json,
-                 final BufferedReader stdin)
+                 final Path authPlugin, final BufferedReader stdin)
       throws IOException, InterruptedException {
     boolean allSuccessful = true;
 
@@ -91,7 +92,7 @@ public abstract class ControlCommand implements CliCommand {
         }
       }
 
-      final boolean successful = run(options, target, out, err, username, json, stdin);
+      final boolean successful = run(options, target, out, err, username, json, authPlugin, stdin);
       if (shortCircuit && !successful) {
         return 1;
       }
@@ -119,10 +120,10 @@ public abstract class ControlCommand implements CliCommand {
    */
   private boolean run(final Namespace options, final Target target, final PrintStream out,
                       final PrintStream err, final String username, final boolean json,
-                      final BufferedReader stdin)
+                      final Path authPlugin, final BufferedReader stdin)
       throws InterruptedException, IOException {
 
-    final HeliosClient client = Utils.getClient(target, err, username);
+    final HeliosClient client = Utils.getClient(target, err, username, authPlugin);
     if (client == null) {
       return false;
     }

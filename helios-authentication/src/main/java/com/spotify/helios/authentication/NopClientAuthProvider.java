@@ -21,14 +21,10 @@
 
 package com.spotify.helios.authentication;
 
-import java.util.ServiceConfigurationError;
+public class NopClientAuthProvider implements ClientAuthProvider {
 
-/**
- * Indicates that an error occurred during authenticator plugin loading.
- */
-public class InjectableProviderLoadingException extends Exception {
-
-  InjectableProviderLoadingException(final String message, final ServiceConfigurationError e) {
-    super(message, e);
+  @Override
+  public AuthClient getClient() {
+    return new NopAuthClient();
   }
 }

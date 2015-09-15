@@ -21,14 +21,26 @@
 
 package com.spotify.helios.authentication;
 
-import com.sun.jersey.api.model.Parameter;
-import com.sun.jersey.spi.inject.InjectableProvider;
+import java.net.URI;
+import java.nio.file.Path;
+import java.util.List;
 
-import io.dropwizard.auth.Auth;
+/**
+ * A factory for {@link ServerAuthProvider} and {@link ClientAuthProvider} instances
+ * and the entry point for authentication plugins.
+ * {@link AuthProviderLoader} loads plugins by using {@link java.util.ServiceLoader}
+ * to look up {@link AuthProviderFactory} from jar files and class loaders.
+ */
+public interface AuthProviderFactory {
 
-public interface InjectableWithAuthorizer {
+  /**
+   * Create an authenticator. The secret format and semantics are implementation dependent.
+   *
+   * @param secret A secret for the authenticator.
+   * @return An {@link ServerAuthProvider }
+   */
+  ServerAuthProvider createServerAuthProvider(String secret);
 
-  InjectableProvider<Auth, Parameter> getInjectableProvider();
-
-  Authorizer getAuthorier();
+  ClientAuthProvider createClientAuthProvider(Path keyFilePath, List<URI> authServerUris);
 }
+

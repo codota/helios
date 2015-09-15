@@ -21,10 +21,14 @@
 
 package com.spotify.helios.authentication;
 
-public interface Authorizer {
+import java.util.ServiceConfigurationError;
 
-  String createChallenge(String request);
+/**
+ * Indicates that an error occurred during authenticator plugin loading.
+ */
+public class AuthProviderLoadingException extends Exception {
 
-  String createToken(String response);
-
+  AuthProviderLoadingException(final String message, final ServiceConfigurationError e) {
+    super(message, e);
+  }
 }
