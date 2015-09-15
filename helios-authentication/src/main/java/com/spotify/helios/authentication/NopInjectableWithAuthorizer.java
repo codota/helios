@@ -21,29 +21,20 @@
 
 package com.spotify.helios.authentication;
 
-import io.dropwizard.auth.Authenticator;
+import com.sun.jersey.api.model.Parameter;
+import com.sun.jersey.spi.inject.InjectableProvider;
 
-/**
- * A factory for {@link Authenticator} instances, and the entry point for service registrar
- * plugins. {@link AuthenticatorLoader} loads plugins by using {@link java.util.ServiceLoader}
- * to
- * look up {@link AuthenticatorFactory} from jar files and class loaders.
- */
-public interface AuthenticatorFactory {
+import io.dropwizard.auth.Auth;
 
-  /**
-   * Create an authenticator.
-   *
-   * @return An {@link Authenticator }
-   */
-  Authenticator<String, User> create();
+public class NopInjectableWithAuthorizer implements InjectableWithAuthorizer {
 
-  /**
-   * Create an authenticator. The secret format and semantics are implementation dependent.
-   *
-   * @param secret A secret for the authenticator.
-   * @return An {@link Authenticator }
-   */
-  Authenticator<String, User> createWithSecret(String secret);
+  @Override
+  public InjectableProvider<Auth, Parameter> getInjectableProvider() {
+    return new NopInjectableProvider();
+  }
+
+  @Override
+  public Authorizer getAuthorier() {
+    return new NopAuthorizer();
+  }
 }
-

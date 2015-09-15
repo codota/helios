@@ -24,16 +24,13 @@ package com.spotify.helios.master;
 import com.spotify.helios.authentication.InjectableProviderFactory;
 import com.spotify.helios.authentication.InjectableProviderLoader;
 import com.spotify.helios.authentication.InjectableProviderLoadingException;
+import com.spotify.helios.authentication.InjectableWithAuthorizer;
 import com.spotify.helios.authentication.NopInjectableProviderFactory;
-import com.sun.jersey.api.model.Parameter;
-import com.sun.jersey.spi.inject.InjectableProvider;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
-
-import io.dropwizard.auth.Auth;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 
@@ -50,22 +47,20 @@ public class InjectableProviders {
    * @param secret String representing the secret for the auth
    * @return The InjectableProvider object.
    */
-  public static InjectableProvider<Auth, Parameter>
+  public static InjectableWithAuthorizer
   createInjectableProvider(final Path path, final String secret) {
     // Get an auth provider factory
     final InjectableProviderFactory factory;
     if (path == null) {
+      log.info("No auth plugin configured. Creating NOOPPPP.");
       factory = createFactory();
     } else {
+      log.info("Creating real thing!!!!");
       factory = createFactory(path);
     }
 
     // Create the authenticator
-    log.info("Creating injectable provider.");
-    final InjectableProvider<Auth, Parameter> injectableProvider =
-        isNullOrEmpty(secret) ? factory.create() : factory.createWithSecret(secret);
-    log.info("CREATED INJECTABLE");
-    return injectableProvider;
+    return isNullOrEmpty(secret) ? factory.create() : factory.createWithSecret(secret);
   }
 
   /**

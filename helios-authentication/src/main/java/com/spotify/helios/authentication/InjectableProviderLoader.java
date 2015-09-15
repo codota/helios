@@ -21,6 +21,17 @@
 
 package com.spotify.helios.authentication;
 
+import com.google.common.base.Preconditions;
+import com.google.common.hash.Hashing;
+import com.google.common.io.BaseEncoding;
+import com.google.common.primitives.UnsignedInteger;
+
+import com.sun.jersey.api.core.HttpContext;
+import com.sun.jersey.api.model.Parameter;
+import com.sun.jersey.core.spi.component.ComponentContext;
+import com.sun.jersey.server.impl.inject.AbstractHttpContextInjectable;
+import com.sun.jersey.spi.inject.InjectableProvider;
+
 import org.slf4j.Logger;
 
 import java.net.MalformedURLException;
@@ -32,6 +43,10 @@ import java.util.List;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
+import javax.ws.rs.WebApplicationException;
+
+import io.dropwizard.auth.Authenticator;
+
 import static java.util.Arrays.asList;
 
 /**
@@ -39,8 +54,21 @@ import static java.util.Arrays.asList;
  */
 public class InjectableProviderLoader {
 
-  private static final List<Package> PROVIDED = asList(Logger.class.getPackage(),
-                                                       InjectableProviderLoader.class.getPackage());
+  private static final List<Package> PROVIDED = asList(
+      Logger.class.getPackage(),
+      InjectableProviderLoader.class.getPackage(),
+      Authenticator.class.getPackage(),
+      InjectableProvider.class.getPackage(),
+      Preconditions.class.getPackage(),
+      UnsignedInteger.class.getPackage(),
+      Parameter.class.getPackage(),
+      ComponentContext.class.getPackage(),
+      AbstractHttpContextInjectable.class.getPackage(),
+      WebApplicationException.class.getPackage(),
+      HttpContext.class.getPackage(),
+      BaseEncoding.class.getPackage(),
+      Hashing.class.getPackage()
+  );
 
   private static final ClassLoader CURRENT = InjectableProviderLoader.class.getClassLoader();
 
@@ -79,8 +107,8 @@ public class InjectableProviderLoader {
    * @throws InjectableProviderLoadingException if loading failed.
    */
   public static InjectableProviderFactory load(final Path plugin,
-                                             final ClassLoader environment,
-                                             final ClassLoader parent)
+                                               final ClassLoader environment,
+                                               final ClassLoader parent)
       throws InjectableProviderLoadingException {
     return load("plugin jar file: " + plugin, pluginClassLoader(plugin, environment, parent));
   }
@@ -104,16 +132,10 @@ public class InjectableProviderLoader {
     }
     final Iterator<InjectableProviderFactory> iterator = loader.iterator();
     if (iterator.hasNext()) {
-      try {
-        InjectableProviderFactory next = iterator.next();
-        return next;
-      } catch (ServiceConfigurationError e) {
-        System.out.println(e);
-      }
+      return iterator.next();
     } else {
       return null;
     }
-    return null;
   }
 
   /**

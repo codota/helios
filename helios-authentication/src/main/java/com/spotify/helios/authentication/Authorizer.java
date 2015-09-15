@@ -21,18 +21,10 @@
 
 package com.spotify.helios.authentication;
 
-/**
- * A factory for a nop authenticator.
- */
-public class NopInjectableProviderFactory implements InjectableProviderFactory {
+public interface Authorizer {
 
-  @Override
-  public InjectableWithAuthorizer create() {
-    return new NopInjectableWithAuthorizer();
-  }
+  String createChallenge(String request);
 
-  @Override
-  public InjectableWithAuthorizer createWithSecret(String secret) {
-    return new NopInjectableWithAuthorizer();
-  }
+  String createToken(String response);
+
 }

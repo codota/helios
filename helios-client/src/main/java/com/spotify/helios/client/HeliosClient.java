@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureFallback;
 import com.google.common.util.concurrent.Futures;
@@ -41,6 +42,12 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.spotify.crtauth.CrtAuthClient;
+import com.spotify.crtauth.exceptions.InvalidInputException;
+import com.spotify.crtauth.exceptions.KeyNotFoundException;
+import com.spotify.crtauth.exceptions.SignerException;
+import com.spotify.crtauth.signer.SingleKeySigner;
+import com.spotify.crtauth.utils.TraditionalKeyParser;
 import com.spotify.helios.common.HeliosException;
 import com.spotify.helios.common.Json;
 import com.spotify.helios.common.Resolver;
@@ -74,6 +81,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -84,11 +92,15 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.RSAPrivateKeySpec;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
@@ -96,6 +108,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.ws.rs.core.HttpHeaders;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -135,7 +148,7 @@ public class HeliosClient implements AutoCloseable {
       String.format("[%s]", Joiner.on("|").join(VALID_PROTOCOLS));
   private static final String CRT_AUTH_SCHEME = "X-CHAP";
   private static final String DEFAULT_SSH_KEY_DIR = ".ssh";
-  private static final String DEFAULT_SSH_PRIVATE_KEY = "id_rsa";
+  private static final String DEFAULT_SSH_PRIVATE_KEY = "id_rsa.work";
   private static final String DEFAULT_SSH_PRIVATE_KEY_PATH =
       DEFAULT_SSH_KEY_DIR + File.separator + DEFAULT_SSH_PRIVATE_KEY;
 
@@ -560,34 +573,99 @@ public class HeliosClient implements AutoCloseable {
     });
   }
 
-  public ListenableFuture<List<String>> listMastersAuthed() {
-//      throws ExecutionException, InterruptedException, InvalidInputException,
-// KeyNotFoundException, SignerException, IOException {
-//    final Response r = request(uri("/masters/authed"), "GET").get();
+  public ListenableFuture<List<String>> listMastersAuthed()
+      throws ExecutionException, InterruptedException, InvalidInputException, KeyNotFoundException,
+             SignerException, IOException {
+    final Response r = request(uri("/masters/authed"), "GET").get();
+    if (r.getStatus() == 401) {
+      final List<String> authHeaders = r.getHeaders().get(HttpHeaders.WWW_AUTHENTICATE);
+      if (authHeaders.size() < 1) {
+        log.info("something went wrong");
+      }
+      if (!authHeaders.get(0).equals(CRT_AUTH_SCHEME)) {
+        log.info("This client doesn't support auth scheme '%s'.", authHeaders.get(0));
+      }
+
+      final String authRequest = CrtAuthClient.createRequest("dxia");//System.getProperty("user.name"));
+      final Response r2 = request(uri("/_auth"), "GET", null, ImmutableMap.of(
+          "X-CHAP", singletonList("request:" + authRequest))).get();
+
+      if (r2.getStatus() != 200) {
+        log.info("crt auth request failed with status code %d", r2.getStatus());
+      }
+
+      Map<String, List<String>> headers = r2.getHeaders();
+      final List<String> xChapHeader = headers.get("X-CHAP");
+      if (xChapHeader == null || xChapHeader.size() < 1) {
+        log.info("crt auth request failed to get X-CHAP header in reply.");
+      }
+
+      assert xChapHeader != null;
+      final String[] challengeParts = xChapHeader.get(0).split(":");
+      if (challengeParts.length != 2) {
+        log.info("crt auth request failed to get valid challenge: '%s'.", xChapHeader.get(0));
+      }
+
+      final String challenge = challengeParts[1];
+      log.debug("Got CRT auth challenge %s", challenge);
+
+      final CrtAuthClient crtAuthClient = makeCrtAuthClient();
+      final String response = crtAuthClient.createResponse(challenge);
+      final Response r3 = request(uri("/_auth"), "GET", null, ImmutableMap.of(
+          "X-CHAP", singletonList("response:" + response))).get();
+
+      if (r3.getStatus() != 200) {
+        log.info("crt auth response failed with status code %d", r3.getStatus());
+      }
+
+      final Map<String, List<String>> headers2 = r3.getHeaders();
+      final List<String> xChapHeader2 = headers2.get("X-CHAP");
+      if (xChapHeader2 == null || xChapHeader2.size() < 1) {
+        log.info("crt auth response failed to get X-CHAP header in reply.");
+      }
+
+      assert xChapHeader2 != null;
+      final String[] tokenParts = xChapHeader2.get(0).split(":");
+      if (tokenParts.length != 2) {
+        log.info("crt auth response failed to get valid token: '%s'.", xChapHeader2.get(0));
+      }
+
+      final String token = tokenParts[1];
+      log.debug("Got CRT auth token %s", token);
+
+      final Response r4 = request(uri("/masters/authed"), "GET", null, ImmutableMap.of(
+          "Authorization", singletonList("chap:" + token))).get();
+      if (r4.getStatus() != 200) {
+        log.info("authed master response failed with status code %d", r4.getStatus());
+      }
+
+      List<String> ret = ImmutableList.of(new String(r4.getPayload()));
+      return Futures.immediateFuture(ret);
+    }
 
     return Futures.immediateFuture(Collections.<String>emptyList());
   }
 
-//  private static CrtAuthClient makeCrtAuthClient() throws IOException {
-//    final String userHome = System.getProperty("user.home");
-//    final String sshPrivateKeyPath = userHome + File.separator + DEFAULT_SSH_PRIVATE_KEY_PATH;
-//    final String privateKeyStr = CharStreams.toString(new FileReader(sshPrivateKeyPath));
-//
-//    PrivateKey privateKey;
-//    try {
-//      RSAPrivateKeySpec privateKeySpec = TraditionalKeyParser.parsePemPrivateKey(privateKeyStr);
-//      KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-//      privateKey = keyFactory.generatePrivate(privateKeySpec);
-//    } catch (Exception e) {
-//      throw new RuntimeException(e);
-//    }
-//
-////    Signer signer = new AgentSigner();
-////    return new CrtAuthClient(signer, "localhost");
-//
-//    final SingleKeySigner singleKeySigner = new SingleKeySigner(privateKey);
-//    return new CrtAuthClient(singleKeySigner, "localhost");
-//  }
+  private static CrtAuthClient makeCrtAuthClient() throws IOException {
+    final String userHome = System.getProperty("user.home");
+    final String sshPrivateKeyPath = userHome + File.separator + DEFAULT_SSH_PRIVATE_KEY_PATH;
+    final String privateKeyStr = CharStreams.toString(new FileReader(sshPrivateKeyPath));
+
+    PrivateKey privateKey;
+    try {
+      RSAPrivateKeySpec privateKeySpec = TraditionalKeyParser.parsePemPrivateKey(privateKeyStr);
+      KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+      privateKey = keyFactory.generatePrivate(privateKeySpec);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+//    Signer signer = new AgentSigner();
+//    return new CrtAuthClient(signer, "localhost");
+
+    final SingleKeySigner singleKeySigner = new SingleKeySigner(privateKey);
+    return new CrtAuthClient(singleKeySigner, "localhost");
+  }
 
   public ListenableFuture<VersionResponse> version() {
     // Create a fallback in case we fail to connect to the master. Return null if this happens.

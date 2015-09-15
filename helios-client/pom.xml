@@ -47,6 +47,11 @@
       <artifactId>commons-codec</artifactId>
       <version>1.10</version>
     </dependency>
+    <dependency>
+      <groupId>com.spotify</groupId>
+      <artifactId>crtauth</artifactId>
+      <version>0.1.1-SNAPSHOT</version>
+    </dependency>
 
     <!-- test deps -->
     <dependency>
