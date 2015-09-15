@@ -57,6 +57,7 @@ import com.spotify.helios.TemporaryPorts.AllocatedPort;
 import com.spotify.helios.ZooKeeperTestManager;
 import com.spotify.helios.ZooKeeperTestingServerManager;
 import com.spotify.helios.agent.AgentMain;
+import com.spotify.helios.authentication.HeliosAuthException;
 import com.spotify.helios.cli.CliMain;
 import com.spotify.helios.client.HeliosClient;
 import com.spotify.helios.common.Json;
@@ -452,7 +453,8 @@ public abstract class SystemTestBase {
     return masterEndpoint;
   }
 
-  protected String masterName() throws InterruptedException, ExecutionException {
+  protected String masterName() throws InterruptedException, ExecutionException,
+                                       HeliosAuthException {
     if (integrationMode) {
       if (masterName == null) {
         masterName = defaultClient().listMasters().get().get(0);
@@ -488,7 +490,7 @@ public abstract class SystemTestBase {
     return dockerPortRange;
   }
 
-  protected String testHost() throws InterruptedException, ExecutionException {
+  protected String testHost() throws InterruptedException, ExecutionException, HeliosAuthException {
     if (integrationMode) {
       if (testHost == null) {
         final List<String> hosts = defaultClient().listHosts().get();

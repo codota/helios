@@ -36,11 +36,12 @@ public interface AuthProviderFactory {
   /**
    * Create an authenticator. The secret format and semantics are implementation dependent.
    *
+   * @param serverName The name of the server using this {@link ServerAuthProvider}
    * @param secret A secret for the authenticator.
    * @return An {@link ServerAuthProvider }
    */
-  ServerAuthProvider createServerAuthProvider(String secret);
+  ServerAuthProvider createServerAuthProvider(String serverName, String secret);
 
-  ClientAuthProvider createClientAuthProvider(Path keyFilePath, List<URI> authServerUris);
+  ClientAuthProvider createClientAuthProvider(Path keyPath, List<URI> authServerUris);
 }
 

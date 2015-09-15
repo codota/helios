@@ -31,12 +31,12 @@ import java.util.List;
 public class NopAuthProviderFactory implements AuthProviderFactory {
 
   @Override
-  public ServerAuthProvider createServerAuthProvider(String secret) {
+  public ServerAuthProvider createServerAuthProvider(final String serverName, final String secret) {
     return new NopServerAuthProvider();
   }
 
   @Override
-  public ClientAuthProvider createClientAuthProvider(final Path keyFilePath,
+  public ClientAuthProvider createClientAuthProvider(final Path keyPath,
                                                      final List<URI> authServerUris) {
     return new NopClientAuthProvider();
   }

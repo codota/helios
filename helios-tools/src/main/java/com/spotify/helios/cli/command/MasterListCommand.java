@@ -23,6 +23,7 @@ package com.spotify.helios.cli.command;
 
 import com.google.common.collect.Sets;
 
+import com.spotify.helios.authentication.HeliosAuthException;
 import com.spotify.helios.client.HeliosClient;
 import com.spotify.helios.common.Json;
 
@@ -56,7 +57,7 @@ public class MasterListCommand extends ControlCommand {
   @Override
   int run(final Namespace options, final HeliosClient client, final PrintStream out,
           final boolean json, final BufferedReader stdin)
-      throws ExecutionException, InterruptedException, IOException {
+      throws ExecutionException, InterruptedException, IOException, HeliosAuthException {
 
     final List<String> masters = client.listMasters().get();
     final boolean full = options.getBoolean(fullArg.getDest());

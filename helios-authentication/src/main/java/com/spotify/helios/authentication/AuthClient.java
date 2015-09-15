@@ -23,5 +23,5 @@ package com.spotify.helios.authentication;
 
 public interface AuthClient {
 
-  String getToken(String username);
+  String getToken(String username) throws HeliosAuthException;
 }

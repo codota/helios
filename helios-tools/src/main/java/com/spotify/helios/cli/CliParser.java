@@ -101,8 +101,9 @@ public class CliParser {
   private final CliConfig cliConfig;
   private final List<Target> targets;
   private final String username;
-  private boolean json;
-  private Path authPlugin;
+  private final boolean json;
+  private final Path authPlugin;
+  private final Path authKey;
 
   public CliParser(final String... args)
       throws ArgumentParserException, IOException, URISyntaxException {
@@ -158,6 +159,8 @@ public class CliParser {
 
     final File plugin = options.get(globalArgs.authPluginArg.getDest());
     this.authPlugin = plugin != null ? plugin.toPath() : null;
+    final File authKey = options.get(globalArgs.authKey.getDest());
+    this.authKey = authKey != null ? authKey.toPath() : null;
   }
 
   private List<Target> computeTargets(final ArgumentParser parser,
@@ -280,7 +283,7 @@ public class CliParser {
     private final ArgumentGroup globalArgs;
     private final boolean topLevel;
     private final Argument authPluginArg;
-
+    private final Argument authKey;
 
     GlobalArgs(final ArgumentParser parser, final CliConfig cliConfig) {
       this(parser, cliConfig, false);
@@ -325,6 +328,10 @@ public class CliParser {
       authPluginArg = parser.addArgument("--auth-plugin")
           .type(fileType().verifyExists().verifyCanRead())
           .help("Path to authenticator plugin.");
+
+      authKey = parser.addArgument("--auth-key")
+          .type(fileType().verifyExists().verifyCanRead())
+          .help("Path to key used for authentication.");
     }
 
     private Argument addArgument(final String... nameOrFlags) {
@@ -356,6 +363,10 @@ public class CliParser {
 
   public Path getAuthPlugin() {
     return authPlugin;
+  }
+
+  public Path getAuthKey() {
+    return authKey;
   }
 
   private Subparser p(final String name) {

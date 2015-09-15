@@ -39,6 +39,7 @@ import javax.ws.rs.core.Response;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
+import static javax.ws.rs.core.MediaType.TEXT_PLAIN;
 
 @Path("/_auth")
 public class AuthResource {
@@ -62,10 +63,17 @@ public class AuthResource {
   public Response handleAuthentication(@Context HttpHeaders headers) {
     final String httpHeaderKey = httpAuthenticator.getHttpAuthHeaderKey();
     final String authHeaderVal = headers.getRequestHeaders().getFirst(httpHeaderKey);
-    final AuthHeader authHeader = httpAuthenticator.parseHttpAuthHeaderValue(authHeaderVal);
+    final AuthHeader authHeader;
+    try {
+      authHeader = httpAuthenticator.parseHttpAuthHeaderValue(authHeaderVal);
+    } catch (HeliosAuthException e) {
+      return Response.status(400).entity(httpAuthenticator.badAuthHeaderMsg())
+          .type(TEXT_PLAIN).build();
+    }
 
     if (authHeader.getAction() == null || isNullOrEmpty(authHeader.getValue())) {
-      return Response.status(400).entity(httpAuthenticator.badAuthHeaderMsg()).build();
+      return Response.status(400).entity(httpAuthenticator.badAuthHeaderMsg())
+          .type(TEXT_PLAIN).build();
     }
 
     switch (authHeader.getAction()) {

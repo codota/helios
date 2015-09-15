@@ -42,6 +42,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.spotify.helios.authentication.AuthClient;
 import com.spotify.helios.authentication.AuthProviders;
+import com.spotify.helios.authentication.HeliosAuthException;
 import com.spotify.helios.common.HeliosException;
 import com.spotify.helios.common.Json;
 import com.spotify.helios.common.Resolver;
@@ -85,7 +86,6 @@ import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -140,20 +140,22 @@ public class HeliosClient implements AutoCloseable {
   HeliosClient(final String user,
                final Supplier<List<URI>> endpointSupplier,
                final Path authPlugin,
+               final Path sshPrivateKeyPath,
                final ListeningExecutorService executorService) {
     this.user = checkNotNull(user);
     this.endpointSupplier = checkNotNull(endpointSupplier);
-    this.executorService = checkNotNull(executorService);
     this.authClient = AuthProviders.createClientAuthProvider(
-        authPlugin, Paths.get(System.getProperty("user.home"), ".ssh", "id_rsa.work"),
-        endpointSupplier.get()).getClient();
+        authPlugin, sshPrivateKeyPath, endpointSupplier.get()).getClient();
+    this.executorService = checkNotNull(executorService);
   }
 
   HeliosClient(final String user,
                final Supplier<List<URI>> endpointSupplier,
-               final Path authPlugin) {
-    this(user, endpointSupplier, authPlugin, MoreExecutors.listeningDecorator(
-        getExitingExecutorService((ThreadPoolExecutor) newFixedThreadPool(4), 0, SECONDS)));
+               final Path authPlugin,
+               final Path privateKeyPath) {
+    this(user, endpointSupplier, authPlugin, privateKeyPath,
+         MoreExecutors.listeningDecorator(
+             getExitingExecutorService((ThreadPoolExecutor) newFixedThreadPool(4), 0, SECONDS)));
   }
 
   @Override
@@ -241,7 +243,6 @@ public class HeliosClient implements AutoCloseable {
         } else {
           rawStream = connection.getInputStream();
         }
-        final Map<String, List<String>> headers = connection.getHeaderFields();
         final boolean gzip = isGzipCompressed(connection);
         final InputStream stream = gzip ? new GZIPInputStream(rawStream) : rawStream;
         final ByteArrayOutputStream payload = new ByteArrayOutputStream();
@@ -254,14 +255,14 @@ public class HeliosClient implements AutoCloseable {
         }
         URI realUri = connection.getURL().toURI();
         if (log.isTraceEnabled()) {
-          log.trace("rep: {} {} {} {} {} {} gzip:{}",
-                    method, realUri, status, headers, payload.size(), decode(payload), gzip);
+          log.trace("rep: {} {} {} {} {} gzip:{}",
+                    method, realUri, status, payload.size(), decode(payload), gzip);
         } else {
-          log.debug("rep: {} {} {} {} {} gzip:{}",
-                    method, realUri, status, headers, payload.size(), gzip);
+          log.debug("rep: {} {} {} {} gzip:{}",
+                    method, realUri, status, payload.size(), gzip);
         }
         checkprotocolVersionStatus(connection);
-        return new Response(method, uri, status, headers, payload.toByteArray());
+        return new Response(method, uri, status, payload.toByteArray());
       }
 
       private boolean isGzipCompressed(final HttpURLConnection connection) {
@@ -548,21 +549,21 @@ public class HeliosClient implements AutoCloseable {
                                                   ImmutableSet.of(HTTP_OK, HTTP_NOT_FOUND)));
   }
 
-  public ListenableFuture<List<String>> listHosts() {
+  public ListenableFuture<List<String>> listHosts() throws HeliosAuthException {
     return get(uri("/hosts/"), ImmutableMap.of(
                    "Authorization", singletonList(authClient.getToken(user))
                ),
-               new TypeReference<List<String>>() {
-               });
+               new TypeReference<List<String>>() {}
+    );
   }
 
-  public ListenableFuture<List<String>> listMasters() {
+  public ListenableFuture<List<String>> listMasters() throws HeliosAuthException {
     return get(uri("/masters/"), ImmutableMap.of(
                    // TODO (dxia) Do auth handshake again if 401
                    "Authorization", singletonList(authClient.getToken(user))
                ),
-               new TypeReference<List<String>>() {
-               });
+               new TypeReference<List<String>>() {}
+    );
   }
 
   public ListenableFuture<VersionResponse> version() {
@@ -728,6 +729,7 @@ public class HeliosClient implements AutoCloseable {
     private String user;
     private Supplier<List<URI>> endpointSupplier;
     private Path authPlugin;
+    private Path privateKeyPath;
 
     public Builder setUser(final String user) {
       this.user = user;
@@ -768,8 +770,13 @@ public class HeliosClient implements AutoCloseable {
       return this;
     }
 
+    public Builder setPrivateKeyPath(final Path privateKeyPath) {
+      this.privateKeyPath = privateKeyPath;
+      return this;
+    }
+
     public HeliosClient build() {
-      return new HeliosClient(user, endpointSupplier, authPlugin);
+      return new HeliosClient(user, endpointSupplier, authPlugin, privateKeyPath);
     }
   }
 
@@ -793,24 +800,17 @@ public class HeliosClient implements AutoCloseable {
     private final String method;
     private final URI uri;
     private final int status;
-    private final Map<String, List<String>> headers;
     private final byte[] payload;
 
-    public Response(final String method, final URI uri, final int status,
-                    Map<String, List<String>> headers, final byte[] payload) {
+    public Response(final String method, final URI uri, final int status, final byte[] payload) {
       this.method = method;
       this.uri = uri;
       this.status = status;
       this.payload = payload;
-      this.headers = headers;
     }
 
     public int getStatus() {
       return status;
-    }
-
-    public Map<String, List<String>> getHeaders() {
-      return headers;
     }
 
     @Override

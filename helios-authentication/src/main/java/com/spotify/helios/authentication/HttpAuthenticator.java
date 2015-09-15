@@ -29,7 +29,7 @@ public interface HttpAuthenticator {
 
   String createToken(String response) throws HeliosAuthException;
 
-  AuthHeader parseHttpAuthHeaderValue(String header);
+  AuthHeader parseHttpAuthHeaderValue(String header) throws HeliosAuthException;
 
   String badAuthHeaderMsg();
 

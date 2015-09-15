@@ -55,7 +55,7 @@
     <dependency>
       <groupId>com.spotify</groupId>
       <artifactId>crtauth</artifactId>
-      <version>0.1.1-SNAPSHOT</version>
+      <version>0.2.0</version>
     </dependency>
 
     <!-- test deps -->
@@ -77,11 +77,16 @@
       <version>1.3</version>
       <scope>test</scope>
     </dependency>
-    <!--<dependency>-->
-      <!--<groupId>com.spotify</groupId>-->
-      <!--<artifactId>crtauth-agent-signer</artifactId>-->
-      <!--<version>0.1.0-SNAPSHOT</version>-->
-    <!--</dependency>-->
+    <dependency>
+      <groupId>com.spotify</groupId>
+      <artifactId>helios-crtauth</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>com.spotify</groupId>
+      <artifactId>crtauth-agent-signer</artifactId>
+      <version>0.1.0</version>
+    </dependency>
   </dependencies>
 
   <build>

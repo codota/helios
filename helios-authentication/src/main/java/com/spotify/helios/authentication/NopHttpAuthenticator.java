@@ -40,11 +40,13 @@ public class NopHttpAuthenticator implements HttpAuthenticator {
 
   @Override
   public AuthHeader parseHttpAuthHeaderValue(final String header) {
-    return null;
+    return new NopAuthHeader();
   }
 
   @Override
   public String badAuthHeaderMsg() {
-    return null;
+    return "Server is using a noop authenticator (NopHttpAuthenticator). "
+           + "Make sure your client is also using the default noop authenticator or else "
+           + "you'll get these errors.";
   }
 }

@@ -194,8 +194,8 @@ public class MasterService extends AbstractIdleService {
     this.rollingUpdateService = new RollingUpdateService(model, reactorFactory);
 
     // Set up authentication
-    final ServerAuthProvider serverAuthProvider =
-        AuthProviders.createServerAuthProvider(config.getAuthPlugin(), config.getAuthSecret());
+    final ServerAuthProvider serverAuthProvider = AuthProviders.createServerAuthProvider(
+        config.getAuthPlugin(), config.getName(), config.getAuthSecret());
     environment.jersey().register(serverAuthProvider.getInjectableProvider());
     environment.jersey().register(new AuthResource(serverAuthProvider.getHttpAuthenticator()));
 

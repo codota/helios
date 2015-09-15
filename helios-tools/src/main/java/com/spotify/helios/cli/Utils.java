@@ -55,7 +55,8 @@ public class Utils {
   }
 
   public static HeliosClient getClient(final Target target, final PrintStream err,
-                                       final String username, final Path authPlugin) {
+                                       final String username, final Path authPlugin,
+                                       final Path privateKeyPath) {
 
     List<URI> endpoints = Collections.emptyList();
     try {
@@ -72,6 +73,7 @@ public class Utils {
         .setEndpointSupplier(target.getEndpointSupplier())
         .setUser(username)
         .setAuthPlugin(authPlugin)
+        .setPrivateKeyPath(privateKeyPath)
         .build();
   }
 

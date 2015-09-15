@@ -39,12 +39,13 @@ public class AuthProviders {
    * returns a {@link NopServerAuthProvider}
    *
    * @param path Path to plugin jar.
+   * @param serverName The name of the server using this {@link ServerAuthProvider}
    * @param secret String representing the secret for the auth
    * @return The {@link ServerAuthProvider} object.
    */
   public static ServerAuthProvider
-  createServerAuthProvider(final Path path, final String secret) {
-    return createAuthProviderFactory(path).createServerAuthProvider(secret);
+  createServerAuthProvider(final Path path, final String serverName, final String secret) {
+    return createAuthProviderFactory(path).createServerAuthProvider(serverName, secret);
   }
 
   /**
@@ -54,15 +55,15 @@ public class AuthProviders {
    * returns a {@link NopClientAuthProvider}
    *
    * @param path Path to plugin jar.
-   * @param keyFilePath Path to key file.
+   * @param keyPath Path to key file.
    * @param authServerUris URIs of the hosts doing the actual authentication.
    * @return The {@link ClientAuthProvider} object.
    */
   public static ClientAuthProvider
   createClientAuthProvider(final Path path,
-                           final Path keyFilePath,
+                           final Path keyPath,
                            final List<URI> authServerUris) {
-    return createAuthProviderFactory(path).createClientAuthProvider(keyFilePath, authServerUris);
+    return createAuthProviderFactory(path).createClientAuthProvider(keyPath, authServerUris);
   }
 
   private static AuthProviderFactory createAuthProviderFactory(final Path path) {
