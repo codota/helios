@@ -35,6 +35,7 @@ import com.spotify.helios.common.protocol.HostDeregisterResponse;
 import com.spotify.helios.common.protocol.JobDeleteResponse;
 import com.spotify.helios.common.protocol.JobDeployResponse;
 
+import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -43,7 +44,9 @@ import static com.spotify.helios.common.descriptors.HostStatus.Status.DOWN;
 import static com.spotify.helios.common.descriptors.HostStatus.Status.UP;
 import static com.spotify.helios.common.descriptors.TaskStatus.State.RUNNING;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class DeregisterTest extends SystemTestBase {
 
@@ -122,8 +125,39 @@ public class DeregisterTest extends SystemTestBase {
 
     // Start a new agent with the same hostname but have it generate a different ID
     resetAgentStateDir();
+
+    // Set TTL to 0 so new agent will deregister previous one.
     startDefaultAgent(testHost(), "--zk-registration-ttl", "0");
+
+    // Check that the new host is registered
     awaitHostRegistered(client, host, LONG_WAIT_SECONDS, SECONDS);
     awaitHostStatus(client, host, UP, LONG_WAIT_SECONDS, SECONDS);
+  }
+
+  @Test
+  public void testRegistrationResolutionTtlNotExpired() throws Exception {
+    startDefaultMaster();
+    final String host = testHost();
+    AgentMain agent = startDefaultAgent(host);
+
+    final HeliosClient client = defaultClient();
+
+    // Wait for agent to come up
+    awaitHostRegistered(client, host, LONG_WAIT_SECONDS, SECONDS);
+    awaitHostStatus(client, host, UP, LONG_WAIT_SECONDS, SECONDS);
+
+    // Kill off agent
+    agent.stopAsync().awaitTerminated();
+    awaitHostStatus(client, host, DOWN, LONG_WAIT_SECONDS, SECONDS);
+
+    // Start a new agent with the same hostname but have it generate a different ID
+    resetAgentStateDir();
+    // Set TTL to a large number so new agent will not deregister previous one.
+    startDefaultAgent(testHost(), "--zk-registration-ttl", "9999");
+    awaitHostRegistered(client, host, 10, SECONDS);
+
+    // Check that the new host didn't register
+    final String output = cli("hosts", host, "--status", "UP");
+    assertThat(output, not(Matchers.containsString(host)));
   }
 }
